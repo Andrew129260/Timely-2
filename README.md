@@ -12,4 +12,4 @@ I have kept the original spirit of the orginal with a few twists.
 
 4.) Reduced /optimize the memory footprint and battery drain of the watch face as best as possible.
 
-Currently it only supports Pebble Time 2. I may support more if there is a demand for it. But it can get to be tricky because of memory.
+Currently it only supports Pebble Time 2. I may support more if there is a demand for it. But it can get to be tricky because of memory and display. Will have to look into it more later.
