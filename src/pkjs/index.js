@@ -67,12 +67,33 @@ function fetchOpenMeteoWeather(lat, lon) {
     var unit = useCelsius ? "" : "&temperature_unit=fahrenheit";
     var req = new XMLHttpRequest();
     req.open('GET', "https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,weather_code" + unit, true);
+    
+    // 1. Force the phone to give up if the network hangs for more than 10 seconds
+    req.timeout = 10000;
+    
     req.onload = function() { 
         if (req.status == 200) { 
             var res = JSON.parse(req.responseText); 
             sendWeather(Math.round(res.current.temperature_2m), WMOclimacon[res.current.weather_code]); 
-        } 
+        } else {
+            // API returned a bad status (e.g., 404, 500)
+            console.warn("Weather API returned status: " + req.status);
+            sendWeather(999, 'h'); // 'h' is the default refresh icon
+        }
     };
+    
+    // 2. Handle a complete drop in cellular/wifi signal
+    req.onerror = function() {
+        console.warn("Weather request failed due to network error.");
+        sendWeather(999, 'h');
+    };
+    
+    // 3. Handle the explicit 10-second timeout
+    req.ontimeout = function() {
+        console.warn("Weather request timed out after 10 seconds.");
+        sendWeather(999, 'h');
+    };
+    
     req.send(null);
 }
 function weatherLocationSuccess(pos) { lastCoordinates = pos.coords; fetchOpenMeteoWeather(lastCoordinates.latitude, lastCoordinates.longitude); }

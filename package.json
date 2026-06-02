@@ -191,10 +191,8 @@
         "targetPlatforms": [
             "aplite",
             "basalt",
-            "chalk",
             "diorite",
             "emery",
-            "gabbro",
             "flint"
         ],
         "uuid": "d5a38a50-c240-4da9-aa64-bfb52b95f4c1",
@@ -202,5 +200,5 @@
             "watchface": true
         }
     },
-    "version": "3.0.0"
+    "version": "3.0.1"
 }

@@ -1,36 +1,9 @@
 #include <pebble.h>
 #include "Timely.h"
-#include "effect_layer.h"
-static void request_weather(void *data);
-static void request_timezone(void *data);
-static void watch_version_send(void *data);
-static void battery_status_send(void *data);
-static void toggle_slot_bottom(void *data);
-static void handle_battery(BatteryChargeState charge_state);
-static void handle_bluetooth(bool connected);
-static void set_unifont();
-static void window_load(Window *window);
-static void window_unload(Window *window);
-static void deinit(void);
-static int need_second_tick_handler(void);
-static void switch_tick_handler(void);
-static void app_message_init(void);
-static void init(void);
 
 #define DEBUGLOG 0
 #define TRANSLOG 0
-#define CONFIG_VERSION "3.0.0" // Updated version number
-/*
- * If you fork this code and release the resulting app, please be considerate and change all the appropriate values in appinfo.json 
- *
- * DESCRIPTION
- * This watchface shows the current date and current time in the top 'half',
- * and then a small calendar w/ 3 weeks: last, current, and next week, in the bottom 'half'
- * The statusbar at the top shows the connection status, charging, and battery level - and it will vibrate on link lost.
- * The settings for the face are configurable using the new PebbleKit JS configuration page
- * END DESCRIPTION Section
- *
- */
+#define CONFIG_VERSION "3.0.1"
 
 static Window *window;
 
@@ -65,9 +38,6 @@ static TextLayer *text_connection_layer;
 static TextLayer *text_battery_layer;
 static TextLayer *text_phone_battery_layer;
 
-static EffectLayer *inverter_layer;
-static EffectLayer *battery_meter_layer;
-
 // battery info, instantiate to 'worst scenario' to prevent false hopes
 static uint8_t battery_percent = 10;
 static bool battery_charging = false;
@@ -91,7 +61,7 @@ static int device_width = 144;
 static int device_height = 168;
 static int layout_slot_height = 72;
 static int stat_batt_left = 96;
-// Layout values scaled from the 144x168 Aplite baseline to the actual device size (set in window_load)
+// Layout values scaled from the 144x168 Aplite baseline to the actual device size
 static int s_slot_top_height = 24;
 static int s_batt_top        = 4;
 static int s_batt_height     = 15;
@@ -153,7 +123,7 @@ weather_data weather = {
 
 persist settings = {
   .version    = 13,
-  .inverted   = 1, // DEFAULT TO LIGHT MODE!
+  .inverted   = 1, 
   .day_invert = 1, 
   .grid       = 1, 
   .vibe_hour  = 0, 
@@ -242,7 +212,7 @@ int32_t get_int(Tuple *t) {
 
 // How many days are/were in the month
 int daysInMonth(int mon, int year) {
-    mon++; // dec = 0|12, lazily optimized
+    mon++; 
     if (mon == 4 || mon == 6 || mon == 9 || mon == 11) { return 30; }
     else if (mon == 2) {
         if (year % 400 == 0) return 29;
@@ -260,21 +230,21 @@ struct tm *get_time() {
 }
 
 void setColors(GContext* ctx) {
-    window_set_background_color(window, GColorBlack);
-    graphics_context_set_stroke_color(ctx, GColorWhite);
-    graphics_context_set_fill_color(ctx, GColorBlack);
-    graphics_context_set_text_color(ctx, GColorWhite);
+    window_set_background_color(window, settings.inverted ? GColorWhite : GColorBlack);
+    graphics_context_set_stroke_color(ctx, settings.inverted ? GColorBlack : GColorWhite);
+    graphics_context_set_fill_color(ctx, settings.inverted ? GColorWhite : GColorBlack);
+    graphics_context_set_text_color(ctx, settings.inverted ? GColorBlack : GColorWhite);
 }
 
 void setInvColors(GContext* ctx) {
-    window_set_background_color(window, GColorWhite);
-    graphics_context_set_stroke_color(ctx, GColorBlack);
-    graphics_context_set_fill_color(ctx, GColorWhite);
-    graphics_context_set_text_color(ctx, GColorBlack);
+    window_set_background_color(window, settings.inverted ? GColorBlack : GColorWhite);
+    graphics_context_set_stroke_color(ctx, settings.inverted ? GColorWhite : GColorBlack);
+    graphics_context_set_fill_color(ctx, settings.inverted ? GColorBlack : GColorWhite);
+    graphics_context_set_text_color(ctx, settings.inverted ? GColorWhite : GColorBlack);
 }
 
 void weather_layer_update_callback(Layer *me, GContext* ctx) {
-  (void)me; // 144x72
+  (void)me; 
   static char temp_current[10] = "N/A  ";
   static char cond_current[] = "0";
   if (weather.current < 900) {
@@ -290,7 +260,7 @@ void weather_layer_update_callback(Layer *me, GContext* ctx) {
 }
 
 void splash_layer_update_callback(Layer *me, GContext* ctx) {
-    (void)me; // 144x72
+    (void)me; 
     setColors(ctx);
     graphics_draw_text(ctx, "Timely", fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD), GRect(0, 0, device_width, SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
     graphics_draw_text(ctx, CONFIG_VERSION, fonts_get_system_font(FONT_KEY_GOTHIC_28), GRect(0, SY(32), device_width, SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
@@ -723,14 +693,19 @@ void toggle_statusbar() {
     }
     layer_add_child(statusbar, bitmap_layer_get_layer(bmp_charging_layer));
     layer_add_child(statusbar, battery_layer);
-    layer_add_child(statusbar, effect_layer_get_layer(battery_meter_layer));
+    
+    // FORCE TEXT TO THE FRONT: Add text layer AFTER the graphics layer
+    if (text_battery_layer) layer_add_child(statusbar, text_layer_get_layer(text_battery_layer));
+    
   } else {
     layer_set_hidden(statusbar, true);
     layer_add_child(slot_status, text_layer_get_layer(date_layer));
     text_layer_set_text_alignment(date_layer, GTextAlignmentCenter);
     layer_add_child(datetime_layer, bitmap_layer_get_layer(bmp_charging_layer));
     layer_add_child(datetime_layer, battery_layer);
-    layer_add_child(datetime_layer, effect_layer_get_layer(battery_meter_layer));
+    
+    // FORCE TEXT TO THE FRONT: Add text layer AFTER the graphics layer
+    if (text_battery_layer) layer_add_child(datetime_layer, text_layer_get_layer(text_battery_layer));
   }
   position_date_layer();
 }
@@ -742,11 +717,16 @@ void slot_bot_layer_update_callback(Layer *me, GContext* ctx) {}
 
 void battery_layer_update_callback(Layer *me, GContext* ctx) {
   setColors(ctx);
+  // Outline
   graphics_draw_rect(ctx, GRect(stat_batt_left, s_batt_top, s_batt_width, s_batt_height));
   graphics_draw_rect(ctx, GRect(stat_batt_left + s_batt_width - 1,
                                 s_batt_top + (s_batt_height - s_batt_nib_height)/2,
                                 STAT_BATT_NIB_WIDTH,
                                 s_batt_nib_height));
+  // Native color fill instead of effect layer
+  uint8_t battery_meter = battery_percent/10*(s_batt_width-4)/10;
+  graphics_context_set_fill_color(ctx, settings.inverted ? GColorBlack : GColorWhite);
+  graphics_fill_rect(ctx, GRect(stat_batt_left+2, s_batt_top+2, battery_meter, s_batt_height-4), 0, GCornerNone);
 }
 
 static void request_weather(void *data) {
@@ -839,7 +819,6 @@ void set_status_charging_icon() {
     }
   }
 }
-
 static void toggle_slot_bottom(void *data) {
   watch_version_send(NULL); 
   static Layer* last = NULL;
@@ -854,12 +833,8 @@ static void handle_battery(BatteryChargeState charge_state) {
   static char battery_text[] = "100";
 
   battery_percent = charge_state.charge_percent;
-  uint8_t battery_meter = battery_percent/10*(s_batt_width-4)/10;
   battery_charging = charge_state.is_charging;
   battery_plugged = charge_state.is_plugged;
-
-  layer_set_frame(effect_layer_get_layer(battery_meter_layer), GRect(stat_batt_left+2, s_batt_top+2, battery_meter, s_batt_height-4));
-  layer_set_hidden(effect_layer_get_layer(battery_meter_layer), false);
 
   if (battery_sending == NULL) {
     battery_sending = app_timer_register(5000, &battery_status_send, NULL);
@@ -869,6 +844,13 @@ static void handle_battery(BatteryChargeState charge_state) {
 
   snprintf(battery_text, sizeof(battery_text), "%d", charge_state.charge_percent);
   text_layer_set_text(text_battery_layer, battery_text);
+
+  // Dynamically flip text color to contrast against the battery fill
+  if (battery_percent >= 50) {
+    text_layer_set_text_color(text_battery_layer, settings.inverted ? GColorWhite : GColorBlack);
+  } else {
+    text_layer_set_text_color(text_battery_layer, settings.inverted ? GColorBlack : GColorWhite);
+  }
   layer_mark_dirty(battery_layer);
   statusbar_visible();
   toggle_statusbar();
@@ -998,7 +980,7 @@ bool hourvibe_period_check() {
 
 void set_layer_attr(TextLayer *textlayer, GTextAlignment Alignment) {
   text_layer_set_text_alignment(textlayer, Alignment);
-  text_layer_set_text_color(textlayer, GColorWhite);
+  text_layer_set_text_color(textlayer, settings.inverted ? GColorBlack : GColorWhite);
   text_layer_set_background_color(textlayer, GColorClear);
 }
 
@@ -1014,40 +996,51 @@ void set_layer_attr_cfont(TextLayer *textlayer, uint32_t FontResHandle, GTextAli
 
 static void window_load(Window *window) {
 
+#if defined(PBL_PLATFORM_EMERY)
   unifont_16 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_FUTURA_CONDENSED_65));
   unifont_16_bold = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_FUTURA_CONDENSED_65));
+#else
+  unifont_16 = fonts_get_system_font(FONT_KEY_GOTHIC_18);
+  unifont_16_bold = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+#endif
+
   climacons  = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CLIMACONS_32));
   cal_normal = unifont_16;
   cal_bold   = unifont_16_bold;
 
   Layer *window_layer = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(window_layer);
+  
   device_width       = bounds.size.w;
   device_height      = bounds.size.h;
+
+  int ox = 0;
+
   s_slot_top_height  = LAYOUT_SLOT_TOP    * device_height / 168;
   s_batt_top         = STAT_BATT_TOP      * device_height / 168;
   s_batt_height      = STAT_BATT_HEIGHT   * device_height / 168;
   s_batt_nib_height  = STAT_BATT_NIB_HEIGHT * device_height / 168;
   s_batt_width       = STAT_BATT_WIDTH    * device_width  / 144;
+  
   layout_slot_height = (device_height - s_slot_top_height) / 2;
   int layout_slot_bot = s_slot_top_height + layout_slot_height;
   stat_batt_left     = device_width - s_batt_width - STAT_BATT_NIB_WIDTH - 1;
 
-  slot_status = layer_create(GRect(0,LAYOUT_STAT,device_width,s_slot_top_height));
+  slot_status = layer_create(GRect(ox, LAYOUT_STAT, device_width, s_slot_top_height));
   layer_set_update_proc(slot_status, slot_status_layer_update_callback);
   layer_add_child(window_layer, slot_status);
 
-  statusbar = layer_create(GRect(0,LAYOUT_STAT,device_width,s_slot_top_height));
+  statusbar = layer_create(GRect(0, 0, device_width, s_slot_top_height));
   layer_set_update_proc(statusbar, statusbar_layer_update_callback);
   layer_add_child(slot_status, statusbar);
   GRect stat_bounds = layer_get_bounds(statusbar);
 
-  slot_top = layer_create(GRect(0,s_slot_top_height,device_width,layout_slot_height));
+  slot_top = layer_create(GRect(ox, s_slot_top_height, device_width, layout_slot_height));
   layer_set_update_proc(slot_top, slot_top_layer_update_callback);
   layer_add_child(window_layer, slot_top);
   GRect slot_top_bounds = layer_get_bounds(slot_top);
 
-  slot_bot = layer_create(GRect(0,layout_slot_bot,device_width,layout_slot_height));
+  slot_bot = layer_create(GRect(ox, layout_slot_bot, device_width, layout_slot_height));
   layer_set_update_proc(slot_bot, slot_bot_layer_update_callback);
   layer_add_child(window_layer, slot_bot);
   GRect slot_bot_bounds = layer_get_bounds(slot_bot);
@@ -1055,7 +1048,6 @@ static void window_load(Window *window) {
   bmp_connection_layer = bitmap_layer_create( GRect((device_width / 2) - 10, STAT_BT_ICON_TOP, 20, 20) );
   layer_add_child(statusbar, bitmap_layer_get_layer(bmp_connection_layer));
   
-  // FIX: Using the correct Unlink ID you created
   image_connection_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BT_LINKED_ICON);
   image_noconnection_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BT_UNLINK_ICON);
 
@@ -1100,7 +1092,13 @@ static void window_load(Window *window) {
   layer_add_child(datetime_layer, weather_layer);
 
   time_layer = text_layer_create( GRect(REL_CLOCK_TIME_LEFT, SY(REL_CLOCK_TIME_TOP), device_width - 2, SY(REL_CLOCK_TIME_HEIGHT)) );
-  set_layer_attr_cfont(time_layer, device_height > 168 ? RESOURCE_ID_FONT_FUTURA_CONDENSED_65 : RESOURCE_ID_FONT_FUTURA_CONDENSED_65, GTextAlignmentCenter);
+
+#if defined(PBL_PLATFORM_EMERY)
+  set_layer_attr_cfont(time_layer, RESOURCE_ID_FONT_FUTURA_CONDENSED_65, GTextAlignmentCenter);
+#else
+  set_layer_attr_sfont(time_layer, FONT_KEY_BITHAM_42_BOLD, GTextAlignmentCenter);
+#endif
+
   toggle_weather();
   position_time_layer(); 
   update_time_text();
@@ -1137,14 +1135,22 @@ static void window_load(Window *window) {
   
   layer_add_child(statusbar, text_layer_get_layer(text_connection_layer));
   
+  #if defined(PBL_PLATFORM_EMERY)
+  // Give the larger font more breathing room so it doesn't clip
+  text_phone_battery_layer = text_layer_create( GRect(4, s_batt_top - 3, 64, s_batt_height + 4) );
+#else
+  // Standard bounds for classic devices
   text_phone_battery_layer = text_layer_create( GRect(4, s_batt_top - 2, 60, s_batt_height) );
-  #ifdef PBL_PLATFORM_EMERY
-  set_layer_attr_sfont(text_phone_battery_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentLeft);
-  #else
-  set_layer_attr_sfont(text_phone_battery_layer, FONT_KEY_GOTHIC_14, GTextAlignmentLeft);
-  #endif
+#endif
+  #if defined(PBL_PLATFORM_EMERY)
+  // Give the Time 2 a larger font to match its higher resolution
+  set_layer_attr_sfont(text_phone_battery_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentCenter);
+#else
+  // Keep the crisp standard font for classic, Time, and Round platforms
+  set_layer_attr_sfont(text_phone_battery_layer, FONT_KEY_GOTHIC_14, GTextAlignmentCenter);
+#endif
+
   
-  // FIX: Load from watch memory instead of defaulting to --%
   if (persist_exists(PK_PHONE_BATT)) {
     static char pb_text[10];
     snprintf(pb_text, sizeof(pb_text), "P: %d%%", (int)persist_read_int(PK_PHONE_BATT));
@@ -1157,39 +1163,28 @@ static void window_load(Window *window) {
   
   toggle_phone_battery_display(); 
 
-  text_battery_layer = text_layer_create( GRect(stat_batt_left, s_batt_top - 2, s_batt_width, s_batt_height) );
-  #ifdef PBL_PLATFORM_EMERY
+  // Place the text perfectly inside the battery bar
+  GRect battery_text_bounds = GRect(stat_batt_left, s_batt_top - 2, s_batt_width, s_batt_height);
+  text_battery_layer = text_layer_create(battery_text_bounds);
+
+#if defined(PBL_PLATFORM_EMERY)
   set_layer_attr_sfont(text_battery_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentCenter);
-  #else
+#else
   set_layer_attr_sfont(text_battery_layer, FONT_KEY_GOTHIC_14, GTextAlignmentCenter);
-  #endif
+#endif
   text_layer_set_text(text_battery_layer, "-");
 
   layer_add_child(statusbar, text_layer_get_layer(text_battery_layer));
 
   set_unifont();
 
-  battery_meter_layer = effect_layer_create(stat_bounds);
-  effect_layer_add_effect(battery_meter_layer, effect_invert, NULL); 
-  layer_set_hidden(effect_layer_get_layer(battery_meter_layer), true);
-  layer_add_child(statusbar, effect_layer_get_layer(battery_meter_layer));
-
   statusbar_visible();
   toggle_statusbar();
 
-  inverter_layer = effect_layer_create(bounds);
-  effect_layer_add_effect(inverter_layer, effect_invert, NULL);
-  if (settings.inverted==0) {
-    layer_set_hidden(effect_layer_get_layer(inverter_layer), true);
-  }
-  layer_add_child(window_layer, effect_layer_get_layer(inverter_layer));
-
+  window_set_background_color(window, settings.inverted ? GColorWhite : GColorBlack);
 }
 
 static void window_unload(Window *window) {
-  effect_layer_destroy(inverter_layer);
-  effect_layer_destroy(battery_meter_layer);
-  
   layer_destroy(text_layer_get_layer(text_battery_layer));
   layer_destroy(text_layer_get_layer(text_phone_battery_layer));
   layer_destroy(text_layer_get_layer(text_connection_layer));
@@ -1300,6 +1295,7 @@ void my_out_sent_handler(DictionaryIterator *sent, void *context) {
 }
 void my_out_fail_handler(DictionaryIterator *failed, AppMessageResult reason, void *context) {
 }
+
 void in_js_ready_handler(DictionaryIterator *received, void *context) {
     watch_version_send(NULL);
     if (weather_request == NULL) { weather_request = app_timer_register(3000, &request_weather, NULL); } 
@@ -1341,11 +1337,18 @@ void in_configuration_handler(DictionaryIterator *received, void *context) {
     Tuple *style_inv = dict_find(received, MESSAGE_KEY_style_inv);
     if (style_inv != NULL) {
       settings.inverted = get_int(style_inv);
-      if (settings.inverted == 0) {
-        layer_set_hidden(effect_layer_get_layer(inverter_layer), true);
-      } else {
-        layer_set_hidden(effect_layer_get_layer(inverter_layer), false);
-      }
+      GColor t_color = settings.inverted ? GColorBlack : GColorWhite;
+      window_set_background_color(window, settings.inverted ? GColorWhite : GColorBlack);
+      text_layer_set_text_color(date_layer, t_color);
+      text_layer_set_text_color(time_layer, t_color);
+      text_layer_set_text_color(week_layer, t_color);
+      text_layer_set_text_color(day_layer, t_color);
+      text_layer_set_text_color(ampm_layer, t_color);
+      text_layer_set_text_color(text_connection_layer, t_color);
+      text_layer_set_text_color(text_phone_battery_layer, t_color);
+      layer_mark_dirty(window_get_root_layer(window));
+      handle_battery(battery_state_service_peek()); // Force the dynamic color to recalculate
+      layer_mark_dirty(window_get_root_layer(window));
     }
 
     Tuple *style_day_inv = dict_find(received, MESSAGE_KEY_style_day_inv);
@@ -1563,7 +1566,6 @@ void in_configuration_handler(DictionaryIterator *received, void *context) {
 
 void my_in_rcv_handler(DictionaryIterator *received, void *context) {
   
-  // FIX: Save Phone Battery to persistent memory
   Tuple *phone_batt = dict_find(received, MESSAGE_KEY_PhoneBattery);
   if (phone_batt) {
     int pb_val = (int)get_int(phone_batt);
@@ -1655,9 +1657,9 @@ static void init(void) {
     .load = window_load,
     .unload = window_unload
   });
-  window_set_background_color(window, GColorBlack);
+  
+  // Handled natively via settings check in window_load now
   window_stack_push(window, false);
-
 
   switch_tick_handler();
   bluetooth_connection_service_subscribe(&handle_bluetooth);
