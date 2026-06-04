@@ -35,7 +35,6 @@ static GBitmap *image_charging_icon;
 static GBitmap *image_hourvibe_icon;
 static GBitmap *image_dnd_icon;
 static TextLayer *text_connection_layer;
-static TextLayer *text_battery_layer;
 static TextLayer *text_phone_battery_layer;
 
 // battery info, instantiate to 'worst scenario' to prevent false hopes
@@ -188,7 +187,7 @@ persist_adv_settings adv_settings = {
   .weather_format = 0,  
   .weather_update = 15, 
   .weather_lat = "",    
-  .weather_lon = "",   
+  .weather_lon = "",    
   .clock_font = 1,      
   .token_type = { 0, 0 },   
   .token_code = { "", "" }, 
@@ -686,26 +685,44 @@ void toggle_statusbar() {
   if (showing_statusbar) {
     layer_set_hidden(statusbar, false);
     layer_add_child(datetime_layer, text_layer_get_layer(date_layer));
+    
+    // IF SUBTEXT IS ON: Date shifts Right, leaving huge room for Phone Battery
     if (adv_settings.weather_update && (settings.show_day || settings.show_week || settings.show_am_pm)) {
       text_layer_set_text_alignment(date_layer, GTextAlignmentRight);
+      
+      #if defined(PBL_PLATFORM_EMERY)
+      // Enlarge phone battery for Pebble Time 2
+      layer_set_frame(text_layer_get_layer(text_phone_battery_layer), GRect(4, s_batt_top - 6, 80, s_batt_height + 10));
+      text_layer_set_font(text_phone_battery_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
+      #endif
+
+    // IF SUBTEXT IS OFF: Date is Centered, Phone Battery must shrink
     } else {
       text_layer_set_text_alignment(date_layer, GTextAlignmentCenter);
+      
+      #if defined(PBL_PLATFORM_EMERY)
+      // Shrink phone battery back to safe size for Pebble Time 2
+      layer_set_frame(text_layer_get_layer(text_phone_battery_layer), GRect(4, s_batt_top - 3, 64, s_batt_height + 4));
+      text_layer_set_font(text_phone_battery_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+      #endif
     }
+    
     layer_add_child(statusbar, bitmap_layer_get_layer(bmp_charging_layer));
     layer_add_child(statusbar, battery_layer);
-    
-    // FORCE TEXT TO THE FRONT: Add text layer AFTER the graphics layer
-    if (text_battery_layer) layer_add_child(statusbar, text_layer_get_layer(text_battery_layer));
     
   } else {
     layer_set_hidden(statusbar, true);
     layer_add_child(slot_status, text_layer_get_layer(date_layer));
     text_layer_set_text_alignment(date_layer, GTextAlignmentCenter);
+    
+    #if defined(PBL_PLATFORM_EMERY)
+    // Failsafe: Shrink phone battery if statusbar is hidden entirely
+    layer_set_frame(text_layer_get_layer(text_phone_battery_layer), GRect(4, s_batt_top - 3, 64, s_batt_height + 4));
+    text_layer_set_font(text_phone_battery_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+    #endif
+    
     layer_add_child(datetime_layer, bitmap_layer_get_layer(bmp_charging_layer));
     layer_add_child(datetime_layer, battery_layer);
-    
-    // FORCE TEXT TO THE FRONT: Add text layer AFTER the graphics layer
-    if (text_battery_layer) layer_add_child(datetime_layer, text_layer_get_layer(text_battery_layer));
   }
   position_date_layer();
 }
@@ -717,18 +734,49 @@ void slot_bot_layer_update_callback(Layer *me, GContext* ctx) {}
 
 void battery_layer_update_callback(Layer *me, GContext* ctx) {
   setColors(ctx);
-  // Outline
+  
+  // 1. Draw Outline
   graphics_draw_rect(ctx, GRect(stat_batt_left, s_batt_top, s_batt_width, s_batt_height));
   graphics_draw_rect(ctx, GRect(stat_batt_left + s_batt_width - 1,
                                 s_batt_top + (s_batt_height - s_batt_nib_height)/2,
                                 STAT_BATT_NIB_WIDTH,
                                 s_batt_nib_height));
-  // Native color fill instead of effect layer
-  uint8_t battery_meter = battery_percent/10*(s_batt_width-4)/10;
-  graphics_context_set_fill_color(ctx, settings.inverted ? GColorBlack : GColorWhite);
-  graphics_fill_rect(ctx, GRect(stat_batt_left+2, s_batt_top+2, battery_meter, s_batt_height-4), 0, GCornerNone);
-}
 
+  // Calculate the fill width dynamically
+  uint8_t battery_meter = battery_percent * (s_batt_width - 4) / 100;
+
+  // 2. Define the exact dynamic colors based on the user's Dark/Light theme
+  GColor fill_color = settings.inverted ? GColorBlack : GColorWhite;
+  GColor empty_color = settings.inverted ? GColorWhite : GColorBlack;
+
+  // 3. Draw the solid background fill
+  graphics_context_set_fill_color(ctx, fill_color);
+  graphics_fill_rect(ctx, GRect(stat_batt_left + 2, s_batt_top + 2, battery_meter, s_batt_height - 4), 0, GCornerNone);
+
+  // 4. Prepare the text payload
+  char batt_str[5];
+  snprintf(batt_str, sizeof(batt_str), "%d", battery_percent);
+  GFont batt_font = fonts_get_system_font(device_height > 168 ? FONT_KEY_GOTHIC_18_BOLD : FONT_KEY_GOTHIC_14);
+  
+  // Determine base text bounds
+  int text_y_offset = (device_height > 168) ? 3 : 2;
+  GRect tb = GRect(stat_batt_left, s_batt_top - text_y_offset, s_batt_width, s_batt_height + 4);
+
+  // Determine colors so the text contrasts with the MAJORITY of the battery bar
+  GColor text_color = (battery_percent >= 50) ? empty_color : fill_color;
+  GColor outline_color = (battery_percent >= 50) ? fill_color : empty_color;
+
+  // 5. Draw the 1-pixel outline (Left, Right, Up, Down) for perfect contrast
+  graphics_context_set_text_color(ctx, outline_color);
+  graphics_draw_text(ctx, batt_str, batt_font, GRect(tb.origin.x - 1, tb.origin.y, tb.size.w, tb.size.h), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+  graphics_draw_text(ctx, batt_str, batt_font, GRect(tb.origin.x + 1, tb.origin.y, tb.size.w, tb.size.h), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+  graphics_draw_text(ctx, batt_str, batt_font, GRect(tb.origin.x, tb.origin.y - 1, tb.size.w, tb.size.h), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+  graphics_draw_text(ctx, batt_str, batt_font, GRect(tb.origin.x, tb.origin.y + 1, tb.size.w, tb.size.h), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+
+  // 6. Draw the main centered text over the outline
+  graphics_context_set_text_color(ctx, text_color);
+  graphics_draw_text(ctx, batt_str, batt_font, tb, GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+}
 static void request_weather(void *data) {
   weather.condition[0] = 'h'; weather.condition[1] = '\0'; 
   layer_mark_dirty(weather_layer); 
@@ -830,8 +878,6 @@ static void toggle_slot_bottom(void *data) {
 }
 
 static void handle_battery(BatteryChargeState charge_state) {
-  static char battery_text[] = "100";
-
   battery_percent = charge_state.charge_percent;
   battery_charging = charge_state.is_charging;
   battery_plugged = charge_state.is_plugged;
@@ -842,15 +888,7 @@ static void handle_battery(BatteryChargeState charge_state) {
 
   set_status_charging_icon();
 
-  snprintf(battery_text, sizeof(battery_text), "%d", charge_state.charge_percent);
-  text_layer_set_text(text_battery_layer, battery_text);
 
-  // Dynamically flip text color to contrast against the battery fill
-  if (battery_percent >= 50) {
-    text_layer_set_text_color(text_battery_layer, settings.inverted ? GColorWhite : GColorBlack);
-  } else {
-    text_layer_set_text_color(text_battery_layer, settings.inverted ? GColorBlack : GColorWhite);
-  }
   layer_mark_dirty(battery_layer);
   statusbar_visible();
   toggle_statusbar();
@@ -1135,7 +1173,7 @@ static void window_load(Window *window) {
   
   layer_add_child(statusbar, text_layer_get_layer(text_connection_layer));
   
-// Universally create the layer with breathing room and force the 18-point font for ALL watch models
+// Initialize standard for ALL watches. (It will be dynamically resized in toggle_statusbar)
   text_phone_battery_layer = text_layer_create( GRect(4, s_batt_top - 3, 64, s_batt_height + 4) );
   set_layer_attr_sfont(text_phone_battery_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentLeft);
 
@@ -1152,19 +1190,6 @@ static void window_load(Window *window) {
   
   toggle_phone_battery_display(); 
 
-  // Place the text perfectly inside the battery bar
-  GRect battery_text_bounds = GRect(stat_batt_left, s_batt_top - 2, s_batt_width, s_batt_height);
-  text_battery_layer = text_layer_create(battery_text_bounds);
-
-#if defined(PBL_PLATFORM_EMERY)
-  set_layer_attr_sfont(text_battery_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentCenter);
-#else
-  set_layer_attr_sfont(text_battery_layer, FONT_KEY_GOTHIC_14, GTextAlignmentCenter);
-#endif
-  text_layer_set_text(text_battery_layer, "-");
-
-  layer_add_child(statusbar, text_layer_get_layer(text_battery_layer));
-
   set_unifont();
 
   statusbar_visible();
@@ -1174,7 +1199,6 @@ static void window_load(Window *window) {
 }
 
 static void window_unload(Window *window) {
-  layer_destroy(text_layer_get_layer(text_battery_layer));
   layer_destroy(text_layer_get_layer(text_phone_battery_layer));
   layer_destroy(text_layer_get_layer(text_connection_layer));
   layer_destroy(text_layer_get_layer(ampm_layer));

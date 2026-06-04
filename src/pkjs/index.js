@@ -5,6 +5,7 @@ var clay = new Clay(clayConfig, null, { autoHandleEvents: false });
 var useCelsius = false; // Default to Fahrenheit
 var batteryIntervalId = null;
 var weatherIntervalId = null;
+var lastCoordinates = null;
 
 Pebble.addEventListener('ready', function(e) {
     console.log('PebbleKit JS ready!');
@@ -64,40 +65,42 @@ function sendWeather(temp, cond_icon) {
     Pebble.sendAppMessage({ "message_type": 106, "weather_temp": temp, "weather_cond": cond_icon });
 }
 function fetchOpenMeteoWeather(lat, lon) {
+    var cleanLat = lat.toFixed(4);
+    var cleanLon = lon.toFixed(4);
     var unit = useCelsius ? "" : "&temperature_unit=fahrenheit";
-    var req = new XMLHttpRequest();
-    req.open('GET', "https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,weather_code" + unit, true);
+    var url = "https://api.open-meteo.com/v1/forecast?latitude=" + cleanLat + "&longitude=" + cleanLon + "&current=temperature_2m,weather_code" + unit + "&timezone=auto";
     
-    // 1. Force the phone to give up if the network hangs for more than 10 seconds
+    var req = new XMLHttpRequest();
+    req.open('GET', url, true);
     req.timeout = 10000;
     
     req.onload = function() { 
         if (req.status == 200) { 
-            var res = JSON.parse(req.responseText); 
-            sendWeather(Math.round(res.current.temperature_2m), WMOclimacon[res.current.weather_code]); 
+            try {
+                var res = JSON.parse(req.responseText); 
+                var temp = Math.round(res.current.temperature_2m);
+                var iconCode = WMOclimacon[res.current.weather_code];
+                if (!iconCode) iconCode = 'h'; 
+                sendWeather(temp, iconCode); 
+            } catch (e) {
+                console.warn("Weather JSON parse error: " + e);
+                sendWeather(999, 'h');
+            }
         } else {
-            // API returned a bad status (e.g., 404, 500)
             console.warn("Weather API returned status: " + req.status);
-            sendWeather(999, 'h'); // 'h' is the default refresh icon
+            sendWeather(999, 'h'); 
         }
     };
     
-    // 2. Handle a complete drop in cellular/wifi signal
-    req.onerror = function() {
-        console.warn("Weather request failed due to network error.");
-        sendWeather(999, 'h');
-    };
-    
-    // 3. Handle the explicit 10-second timeout
-    req.ontimeout = function() {
-        console.warn("Weather request timed out after 10 seconds.");
-        sendWeather(999, 'h');
-    };
-    
+    req.onerror = function() { sendWeather(999, 'h'); };
+    req.ontimeout = function() { sendWeather(999, 'h'); };
     req.send(null);
 }
 function weatherLocationSuccess(pos) { lastCoordinates = pos.coords; fetchOpenMeteoWeather(lastCoordinates.latitude, lastCoordinates.longitude); }
-function locationError(err) { console.warn('Weather error: ' + err.message); }
+function locationError(err) { 
+    console.warn('Weather error: ' + err.message); 
+    sendWeather(999, 'h'); // Explicitly tell the watch the GPS failed
+}
 function updatePhoneBattery() {
     if (navigator.getBattery) {
         navigator.getBattery().then(function(b) {
@@ -137,7 +140,7 @@ function startPolling() {
     }
     
     if (wInt > 0) {
-        weatherIntervalId = setInterval(function() { navigator.geolocation.getCurrentPosition(weatherLocationSuccess, locationError); }, wInt * 60 * 1000);
+        navigator.geolocation.getCurrentPosition(weatherLocationSuccess, locationError, { timeout: 15000, maximumAge: 60000 });
     }
 }
 
