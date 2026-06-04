@@ -1,114 +1,204 @@
 {
-  "name": "timely-2",
-  "author": "Andrew129260",
-  "version": "3.0.0",
-  "private": true,
-  "keywords": [
-    "pebble-app"
-  ],
-  "dependencies": {
-    "@rebble/clay": "^1.0.8"
-  },
-  "pebble": {
-    "sdkVersion": "3",
-    "targetPlatforms": [
-      "aplite",
-      "basalt",
-      "flint",
-      "emery"
-    ],
-    "enableMultiJS": true,
-    "capabilities": [
-      "location",
-      "configurable"
-    ],
-    "projectType": "native",
-    "displayName": "Timely 2",
-    "uuid": "0B6ECE83-EFCC-48C1-9163-DAC4ED204E99",
-    "watchapp": {
-      "watchface": true,
-      "hiddenApp": false,
-      "onlyShownOnCommunication": false
+    "author": "Andrew129260",
+    "dependencies": {
+        "@rebble/clay": "^1.0.10"
     },
-    "messageKeys": [
-      "style_inv",
-      "style_day_inv",
-      "style_grid",
-      "vibe_hour",
-      "intl_dowo",
-      "intl_fmt_date",
-      "style_am_pm",
-      "style_day",
-      "style_week",
-      "intl_fmt_week",
-      "debugging_on",
-      "vibe_pat_disconnect",
-      "vibe_pat_connect",
-      "strftime_format",
-      "track_battery",
-      "language",
-      "debuglang_on",
-      "cal_week_pattern",
-      "inv_slot_stat",
-      "inv_slot_top",
-      "inv_slot_bot",
-      "show_stat_bar",
-      "show_stat_batt",
-      "show_date",
-      "dnd_start",
-      "dnd_stop",
-      "dnd_noaccel",
-      "vibe_start",
-      "vibe_stop",
-      "vibe_days",
-      "idle_reminder",
-      "idle_vibe_patt",
-      "idle_message",
-      "idle_start",
-      "idle_stop",
-      "weather_fmt",
-      "weather_update",
-      "PhoneBattery",
-      "PhoneBatteryInterval",
-      "WeatherInterval",
-      "message_type",
-      "send_batt_percent",
-      "send_batt_charging",
-      "send_batt_plugged",
-      "timezone_offset",
-      "send_watch_version",
-      "send_config_version",
-      "request_weather",
-      "weather_temp",
-      "weather_cond",
-      "trans_connected",
-      "trans_disconnected",
-      "trans_abbr_sunday",
-      "trans_abbr_monday",
-      "trans_abbr_tuesday",
-      "trans_abbr_wedsday",
-      "trans_abbr_thursday",
-      "trans_abbr_friday",
-      "trans_abbr_saturday",
-      "trans_january",
-      "trans_february",
-      "trans_march",
-      "trans_april",
-      "trans_may",
-      "trans_june",
-      "trans_july",
-      "trans_august",
-      "trans_september",
-      "trans_october",
-      "trans_november",
-      "trans_december",
-      "trans_sunday",
-      "trans_monday",
-      "trans_tuesday",
-      "trans_wedsday",
-      "trans_thursday",
-      "trans_friday",
-      "trans_saturday"
-    ]
-  }
+    "keywords": [
+        "pebble-app"
+    ],
+    "name": "timely-2",
+    "pebble": {
+        "capabilities": [
+            "location",
+            "configurable"
+        ],
+        "displayName": "Timely 2",
+        "enableMultiJS": true,
+        "messageKeys": [
+            "message_type",
+            "send_batt_percent",
+            "send_batt_charging",
+            "send_batt_plugged",
+            "timezone_offset",
+            "send_watch_version",
+            "send_config_version",
+            "request_weather",
+            "weather_temp",
+            "weather_cond",
+            "PhoneBattery",
+            "PhoneBatteryInterval",
+            "WeatherInterval",
+            "weather_fmt",
+            "language",
+            "debugging_on",
+            "style_inv",
+            "style_day_inv",
+            "style_grid",
+            "vibe_hour",
+            "intl_dowo",
+            "intl_fmt_date",
+            "style_week",
+            "intl_fmt_week",
+            "style_day",
+            "style_am_pm",
+            "trans_connected",
+            "trans_disconnected",
+            "trans_sunday",
+            "trans_monday",
+            "trans_tuesday",
+            "trans_wedsday",
+            "trans_thursday",
+            "trans_friday",
+            "trans_saturday",
+            "trans_abbr_sunday",
+            "trans_abbr_monday",
+            "trans_abbr_tuesday",
+            "trans_abbr_wedsday",
+            "trans_abbr_thursday",
+            "trans_abbr_friday",
+            "trans_abbr_saturday",
+            "trans_january",
+            "trans_february",
+            "trans_march",
+            "trans_april",
+            "trans_may",
+            "trans_june",
+            "trans_july",
+            "trans_august",
+            "trans_september",
+            "trans_october",
+            "trans_november",
+            "trans_december",
+            "debugging_on",
+            "debuglang_on",
+            "style_inv",
+            "style_day_inv",
+            "style_grid",
+            "vibe_hour",
+            "intl_dowo",
+            "intl_fmt_date",
+            "style_week",
+            "intl_fmt_week",
+            "style_day",
+            "style_am_pm",
+            "vibe_pat_disconnect",
+            "vibe_pat_connect",
+            "track_battery",
+            "cal_week_pattern",
+            "inv_slot_stat",
+            "inv_slot_top",
+            "inv_slot_bot",
+            "show_stat_bar",
+            "show_stat_batt",
+            "show_date",
+            "dnd_start",
+            "dnd_stop",
+            "dnd_noaccel",
+            "vibe_start",
+            "vibe_stop",
+            "vibe_days",
+            "idle_reminder",
+            "idle_vibe_patt",
+            "idle_start",
+            "idle_stop",
+            "weather_update"
+        ],
+        "projectType": "native",
+        "resources": {
+            "media": [
+                {
+                    "file": "fonts/Climacons.ttf",
+                    "name": "FONT_CLIMACONS_32",
+                    "targetPlatforms": null,
+                    "type": "font"
+                },
+                {
+                    "file": "fonts/futura_condensed_bold-webfont.ttf",
+                    "name": "FONT_FUTURA_CONDENSED_65",
+                    "targetPlatforms": null,
+                    "type": "font"
+                },
+                {
+                    "file": "images/bluetooth_20_20.png",
+                    "name": "IMAGE_BT_LINK_ICON",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/bluetooth_thick_20_20.png",
+                    "name": "IMAGE_BT_LINKED_ICON",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/hourvibe_20_20.png",
+                    "name": "IMAGE_HOURVIBE_ICON",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/charging_20_20.png",
+                    "name": "IMAGE_CHARGING_ICON",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/donotdisturb_20_20.png",
+                    "name": "IMAGE_DONOTDISTURB_ICON",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/menu_icon_timely_dark.png",
+                    "name": "IMAGE_MENU_ICON_DARK",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/timely_app_sm.png",
+                    "name": "IMAGE_APP_SMALL",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/airplane.png",
+                    "name": "IMAGE_ICON_PLANE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/menu_icon_timely light.png",
+                    "menuIcon": true,
+                    "name": "IMAGE_MENU_ICON_LIGHT",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/timely_app_lg.png",
+                    "name": "IMAGE_APP_LARGE",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                },
+                {
+                    "file": "images/bluetooth_unlinked20_20.png",
+                    "name": "IMAGE_BT_UNLINK_ICON",
+                    "targetPlatforms": null,
+                    "type": "bitmap"
+                }
+            ]
+        },
+        "sdkVersion": "3",
+        "targetPlatforms": [
+            "aplite",
+            "basalt",
+            "diorite",
+            "emery",
+            "flint"
+        ],
+        "uuid": "d5a38a50-c240-4da9-aa64-bfb52b95f4c1",
+        "watchapp": {
+            "watchface": true
+        }
+    },
+    "version": "3.0.3"
 }
