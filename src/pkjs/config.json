@@ -42,7 +42,8 @@
       { "type": "heading", "defaultValue": "Calendar" },
       { "type": "toggle", "messageKey": "style_day_inv", "label": "Invert Today", "defaultValue": true },
       { "type": "toggle", "messageKey": "style_grid", "label": "Grid", "defaultValue": true },
-      { "type": "select", "messageKey": "intl_dowo", "label": "Start of Week", "defaultValue": "0", "options": [ { "label": "Su", "value": "0" }, { "label": "Mo", "value": "1" }, { "label": "Tu", "value": "2" }, { "label": "We", "value": "3" }, { "label": "Th", "value": "4" }, { "label": "Fr", "value": "5" }, { "label": "Sa", "value": "6" } ] }
+      { "type": "select", "messageKey": "intl_dowo", "label": "Start of Week 123", "defaultValue": "0", "options": [ { "label": "Su", "value": "0" }, { "label": "Mo", "value": "1" }, { "label": "Tu", "value": "2" }, { "label": "We", "value": "3" }, { "label": "Th", "value": "4" }, { "label": "Fr", "value": "5" }, { "label": "Sa", "value": "6" } ] },
+      { "type": "select", "messageKey": "cal_week_pattern", "label": "Weeks to show", "defaultValue": "0", "options": [ { "label": "Previous, Current, Next", "value": "0"}, { "label": "Two Previous, Current", "value": "1"}, { "label": "Current, Two Next", "value": "2"}]}
     ]
   },
   {
