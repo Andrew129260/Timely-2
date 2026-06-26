@@ -1,7 +1,7 @@
 {
   "name": "timely-2",
   "author": "Andrew129260",
-  "version": "3.5.5",
+  "version": "4.0.0",
   "private": true,
   "keywords": [
     "pebble-app"
@@ -20,7 +20,8 @@
     "enableMultiJS": true,
     "capabilities": [
       "location",
-      "configurable"
+      "configurable",
+      "health"
     ],
     "projectType": "native",
     "displayName": "Timely 2",
@@ -41,6 +42,7 @@
       "style_day",
       "style_week",
       "intl_fmt_week",
+      "complication_mode",
       "debugging_on",
       "vibe_pat_disconnect",
       "vibe_pat_connect",

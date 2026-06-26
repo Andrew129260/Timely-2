@@ -3,41 +3,15 @@
 
 #define DEBUGLOG 0
 #define TRANSLOG 0
-#define CONFIG_VERSION "3.5.5"
+#define CONFIG_VERSION "4.0.0"
 
 static Window *window;
+static Layer *battery_layer, *datetime_layer, *calendar_layer, *splash_layer, *weather_layer, *statusbar, *slot_status, *slot_top, *slot_bot;
+static TextLayer *date_layer, *time_layer, *week_layer, *ampm_layer, *day_layer, *text_connection_layer, *text_phone_battery_layer;
+static GFont unifont_16, unifont_16_bold, cal_normal, cal_bold, climacons;
+static BitmapLayer *bmp_connection_layer, *bmp_charging_layer;
+static GBitmap *image_connection_icon, *image_noconnection_icon, *image_charging_icon, *image_hourvibe_icon, *image_dnd_icon;
 
-static Layer *battery_layer;
-static Layer *datetime_layer;
-static TextLayer *date_layer;
-static TextLayer *time_layer;
-static TextLayer *week_layer;
-static TextLayer *ampm_layer;
-static TextLayer *day_layer;
-static Layer *calendar_layer;
-static Layer *splash_layer;
-static Layer *weather_layer;
-static Layer *statusbar;
-static Layer *slot_status;
-static Layer *slot_top;
-static Layer *slot_bot;
-static GFont unifont_16;
-static GFont unifont_16_bold;
-static GFont cal_normal;
-static GFont cal_bold;
-static GFont climacons;
-
-static BitmapLayer *bmp_connection_layer;
-static GBitmap *image_connection_icon;
-static GBitmap *image_noconnection_icon;
-static BitmapLayer *bmp_charging_layer;
-static GBitmap *image_charging_icon;
-static GBitmap *image_hourvibe_icon;
-static GBitmap *image_dnd_icon;
-static TextLayer *text_connection_layer;
-static TextLayer *text_phone_battery_layer;
-
-// battery info, instantiate to 'worst scenario' to prevent false hopes
 static uint8_t battery_percent = 10;
 static bool battery_charging = false;
 static bool battery_plugged = false;
@@ -45,10 +19,9 @@ AppTimer *battery_sending = NULL;
 AppTimer *timezone_request = NULL;
 AppTimer *weather_request = NULL;
 AppTimer *bottom_toggle = NULL;
-// connected info
 static bool bluetooth_connected = false;
-// suppress vibration
 static bool vibe_suppression = true;
+
 #define TIMEZONE_UNINITIALIZED 80
 static int8_t timezone_offset = TIMEZONE_UNINITIALIZED;
 struct tm *currentTime;
@@ -60,32 +33,28 @@ static int device_width = 144;
 static int device_height = 168;
 static int layout_slot_height = 72;
 static int stat_batt_left = 96;
-// Layout values scaled from the 144x168 Aplite baseline to the actual device size
 static int s_slot_top_height = 24;
-static int s_batt_top        = 4;
-static int s_batt_height     = 15;
+static int s_batt_top = 4;
+static int s_batt_height = 15;
 static int s_batt_nib_height = 5;
-static int s_batt_width      = 44;
+static int s_batt_width = 44;
 
-// define the persistent storage key(s)
-#define PK_SETTINGS      0
-#define PK_LANG_GEN      1 
+#define PK_SETTINGS 0
+#define PK_LANG_GEN 1 
 #define PK_LANG_DATETIME 2 
-#define PK_LANG_MONTHS   3
-#define PK_LANG_DAYS     4
-#define PK_DEBUGGING     5
-#define PK_ADV_SETTINGS  6
-#define PK_PHONE_BATT    7
+#define PK_LANG_MONTHS 3
+#define PK_LANG_DAYS 4
+#define PK_DEBUGGING 5
+#define PK_ADV_SETTINGS 6
+#define PK_PHONE_BATT 7
 #define PK_COMPLICATION_MODE 8 
 
-// Message Type Values (Payloads) matching PebbleKit JS
-#define MSG_VAL_SEND_BATT_PERCENT    100
-#define MSG_VAL_TIMEZONE_OFFSET      103
-#define MSG_VAL_SEND_WATCH_VERSION   104
-#define MSG_VAL_REQUEST_WEATHER      106
+#define MSG_VAL_SEND_BATT_PERCENT 100
+#define MSG_VAL_TIMEZONE_OFFSET 103
+#define MSG_VAL_SEND_WATCH_VERSION 104
+#define MSG_VAL_REQUEST_WEATHER 106
 
 #if defined(PBL_PLATFORM_EMERY)
-// Emery Only: Full State Machine
 enum ComplicationMode {
   MODE_STEPS = 0,
   MODE_WEATHER = 1,
@@ -95,122 +64,43 @@ enum ComplicationMode {
 };
 static uint8_t complication_mode = MODE_WEATHER;
 static uint8_t active_display_metric = MODE_WEATHER;
+static int cached_steps = 0;
+static int cached_bpm = 0;
+static int cached_sleep_hours = 0;
 #else
-// Legacy Platforms Failsafe
 #define MODE_WEATHER 1
 static uint8_t active_display_metric = MODE_WEATHER;
 #endif
 
-// primary coordinates
-#define LAYOUT_STAT           0 
-#define LAYOUT_SLOT_TOP      24 
-#define STAT_BATT_TOP         4
-#define STAT_BATT_WIDTH      44 
-#define STAT_BATT_HEIGHT     15
-#define STAT_BATT_NIB_WIDTH   3 
-#define STAT_BATT_NIB_HEIGHT  5 
-#define STAT_BT_ICON_LEFT    -2 
-#define STAT_BT_ICON_TOP      2
-#define STAT_CHRG_ICON_LEFT  76
-#define STAT_CHRG_ICON_TOP    2
-
-// relative coordinates (relative to SLOTs)
-#define REL_CLOCK_DATE_LEFT       2
-#define REL_CLOCK_DATE_TOP        0
-#define REL_CLOCK_DATE_HEIGHT    30 
-#define REL_CLOCK_TIME_LEFT       0
-#define REL_CLOCK_TIME_TOP        7
-#define REL_CLOCK_TIME_HEIGHT    60 
-#define REL_CLOCK_SUBTEXT_TOP    56 
-// Proportional scaling helpers
+// Macros & Structs
+#define LAYOUT_STAT 0
+#define LAYOUT_SLOT_TOP 24
+#define STAT_BATT_TOP 4
+#define STAT_BATT_WIDTH 44
+#define STAT_BATT_HEIGHT 15
+#define STAT_BATT_NIB_WIDTH 3
+#define STAT_BATT_NIB_HEIGHT 5
+#define STAT_BT_ICON_LEFT -2
+#define STAT_BT_ICON_TOP 2
+#define STAT_CHRG_ICON_LEFT 76
+#define STAT_CHRG_ICON_TOP 2
+#define REL_CLOCK_DATE_LEFT 2
+#define REL_CLOCK_DATE_TOP 0
+#define REL_CLOCK_DATE_HEIGHT 30
+#define REL_CLOCK_TIME_LEFT 0
+#define REL_CLOCK_TIME_TOP 7
+#define REL_CLOCK_TIME_HEIGHT 60
+#define REL_CLOCK_SUBTEXT_TOP 56
 #define SY(n) ((n) * device_height / 168)
-#define SX(n) ((n) * device_width  / 144)
+#define SX(n) ((n) * device_width / 144)
 
-#define SLOT_ID_CLOCK_1  0
-#define SLOT_ID_CALENDAR 1
-#define SLOT_ID_WEATHER  2
-#define SLOT_ID_CLOCK_2  3
-
-weather_data weather = {
-  .current    = 999,
-  .condition = {'h'},
-  .requests = 0,
-  .failures = 0,
-};
-
-persist settings = {
-  .version    = 13,
-  .inverted   = 1, 
-  .day_invert = 1, 
-  .grid       = 1, 
-  .vibe_hour  = 0, 
-  .dayOfWeekOffset = 0, 
-  .date_format = 0, 
-  .show_am_pm  = 0, 
-  .show_day    = 0, 
-  .show_week   = 0, 
-  .week_format = 0, 
-  .vibe_pat_disconnect = 2, 
-  .vibe_pat_connect = 0, 
-  .strftime_format = "%Y-%m-%d",
-  .track_battery = 1, 
-};
-
-persist_months_lang lang_months = {
-  .monthsNames = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" },
-};
-
-persist_days_lang lang_days = {
-  .DaysOfWeek = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" },
-};
-
-persist_general_lang lang_gen = {
-  .statuses = { "Linked", "NOLINK" },
-  .abbrTime = { "AM", "PM" },
-  .abbrDaysOfWeek = { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" },
-  .abbrMonthsNames = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" },
-  .language = "EN",
-};
-
-persist_debug debug = {
-  .general = false,     
-  .language  = false,   
-  .reserved_1 = false,  
-  .reserved_2 = false,  
-  .reserved_3 = false,  
-  .reserved_4 = false,  
-};
-
-persist_adv_settings adv_settings = {
-  .week_pattern = 0,    
-  .invertStatBar = 0,   
-  .invertTopSlot = 0,   
-  .invertBotSlot = 0,   
-  .showStatus = 1,      
-  .showStatusBat = 100, 
-  .showDate = 1,        
-  .DND_start = 0,       
-  .DND_stop  = 0,       
-  .DND_accel_off = 0,   
-  .vibe_hour_start = 0, 
-  .vibe_hour_stop  = 0, 
-  .vibe_hour_days  = 0, 
-  .idle_reminder = 0,   
-  .idle_pattern = 0,    
-  .idle_message = { "Let's Move!" }, 
-  .idle_start = 0,      
-  .idle_stop  = 0,      
-  .clock2_tz = 0,       
-  .clock2_desc = { "Second Clock" }, 
-  .weather_format = 0,  
-  .weather_update = 15, 
-  .weather_lat = "",    
-  .weather_lon = "",    
-  .clock_font = 1,      
-  .token_type = { 0, 0 },   
-  .token_code = { "", "" }, 
-  .slots = { 0, 1, 2, 3, 0, 1, 0, 1, 0, 1 } 
-};
+weather_data weather = { .current = 999, .condition = {'h'}, .requests = 0, .failures = 0 };
+persist settings = { .version = 13, .inverted = 1, .day_invert = 1, .grid = 1, .vibe_hour = 0, .dayOfWeekOffset = 0, .date_format = 0, .show_am_pm = 0, .show_day = 0, .show_week = 0, .week_format = 0, .vibe_pat_disconnect = 2, .vibe_pat_connect = 0, .strftime_format = "%Y-%m-%d", .track_battery = 1 };
+persist_months_lang lang_months = { .monthsNames = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" } };
+persist_days_lang lang_days = { .DaysOfWeek = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" } };
+persist_general_lang lang_gen = { .statuses = { "Linked", "NOLINK" }, .abbrTime = { "AM", "PM" }, .abbrDaysOfWeek = { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" }, .abbrMonthsNames = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }, .language = "EN" };
+persist_debug debug = { .general = false, .language = false, .reserved_1 = false, .reserved_2 = false, .reserved_3 = false, .reserved_4 = false };
+persist_adv_settings adv_settings = { .week_pattern = 0, .invertStatBar = 0, .invertTopSlot = 0, .invertBotSlot = 0, .showStatus = 1, .showStatusBat = 100, .showDate = 1, .DND_start = 0, .DND_stop = 0, .DND_accel_off = 0, .vibe_hour_start = 0, .vibe_hour_stop = 0, .vibe_hour_days = 0, .idle_reminder = 0, .idle_pattern = 0, .idle_message = { "Let's Move!" }, .idle_start = 0, .idle_stop = 0, .clock2_tz = 0, .clock2_desc = { "Second Clock" }, .weather_format = 0, .weather_update = 15, .weather_lat = "", .weather_lon = "", .clock_font = 1, .token_type = { 0, 0 }, .token_code = { "", "" }, .slots = { 0, 1, 2, 3, 0, 1, 0, 1, 0, 1 } };
 
 int32_t get_int(Tuple *t) {
   if (!t) return 0;
@@ -227,35 +117,46 @@ int32_t get_int(Tuple *t) {
 }
 
 int daysInMonth(int mon, int year) {
-    mon++; 
-    if (mon == 4 || mon == 6 || mon == 9 || mon == 11) { return 30; }
-    else if (mon == 2) {
-        if (year % 400 == 0) return 29;
-        else if (year % 100 == 0) return 28;
-        else if (year % 4 == 0) return 29;
-        else return 28;
-    } else {
-        return 31;
-    }
+  mon++;
+  if (mon == 4 || mon == 6 || mon == 9 || mon == 11) {
+    return 30;
+  } else if (mon == 2) {
+    if (year % 400 == 0) return 29;
+    else if (year % 100 == 0) return 28;
+    else if (year % 4 == 0) return 29;
+    else return 28;
+  } else {
+    return 31;
+  }
 }
 
 struct tm *get_time() {
-    time_t tt = time(0);
-    return localtime(&tt);
+  time_t tt = time(0);
+  return localtime(&tt);
 }
 
 void setColors(GContext* ctx) {
-    window_set_background_color(window, settings.inverted ? GColorWhite : GColorBlack);
-    graphics_context_set_stroke_color(ctx, settings.inverted ? GColorBlack : GColorWhite);
-    graphics_context_set_fill_color(ctx, settings.inverted ? GColorWhite : GColorBlack);
-    graphics_context_set_text_color(ctx, settings.inverted ? GColorBlack : GColorWhite);
+  window_set_background_color(window, settings.inverted ? GColorWhite : GColorBlack);
+  graphics_context_set_stroke_color(ctx, settings.inverted ? GColorBlack : GColorWhite);
+  graphics_context_set_fill_color(ctx, settings.inverted ? GColorWhite : GColorBlack);
+  graphics_context_set_text_color(ctx, settings.inverted ? GColorBlack : GColorWhite);
 }
 
 void setInvColors(GContext* ctx) {
-    window_set_background_color(window, settings.inverted ? GColorBlack : GColorWhite);
-    graphics_context_set_stroke_color(ctx, settings.inverted ? GColorWhite : GColorBlack);
-    graphics_context_set_fill_color(ctx, settings.inverted ? GColorBlack : GColorWhite);
-    graphics_context_set_text_color(ctx, settings.inverted ? GColorWhite : GColorBlack);
+  window_set_background_color(window, settings.inverted ? GColorBlack : GColorWhite);
+  graphics_context_set_stroke_color(ctx, settings.inverted ? GColorWhite : GColorBlack);
+  graphics_context_set_fill_color(ctx, settings.inverted ? GColorBlack : GColorWhite);
+  graphics_context_set_text_color(ctx, settings.inverted ? GColorWhite : GColorBlack);
+}
+
+// BACKGROUND TASK: Refresh health data safely
+void update_health_cache() {
+#if defined(PBL_PLATFORM_EMERY)
+  cached_steps = (int)health_service_sum_today(HealthMetricStepCount);
+  cached_bpm = (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
+  HealthValue sleep_sec = health_service_sum_today(HealthMetricSleepSeconds);
+  cached_sleep_hours = (int)(sleep_sec / 3600);
+#endif
 }
 
 void weather_layer_update_callback(Layer *me, GContext* ctx) {
@@ -265,8 +166,6 @@ void weather_layer_update_callback(Layer *me, GContext* ctx) {
 #if defined(PBL_PLATFORM_EMERY)
   if (active_display_metric == MODE_WEATHER) {
 #endif
-
-    // 1. WEATHER RENDERING (Fallback default for all watches)
     static char temp_current[10] = "N/A  ";
     static char cond_current[] = "0";
     if (weather.current < 900) {
@@ -281,239 +180,258 @@ void weather_layer_update_callback(Layer *me, GContext* ctx) {
   
 #if defined(PBL_PLATFORM_EMERY)
   } else {
-    // 2. HEALTH METRICS RENDERING (Time 2 Only)
     static char metric_text[16] = "";
-    static char label_text[10] = "";
+    
+    // 1. Match the exact font size and weight of the Weather Temperature
+    GFont metric_font = fonts_get_system_font(device_height > 168 ? FONT_KEY_GOTHIC_28 : FONT_KEY_GOTHIC_24);
+    
+    // 2. Set the drawing color to automatically match your Light/Dark theme
+    GColor icon_color = settings.inverted ? GColorBlack : GColorWhite;
+    graphics_context_set_fill_color(ctx, icon_color);
+    graphics_context_set_stroke_color(ctx, icon_color);
 
-    if (active_display_metric == MODE_STEPS) {
-      snprintf(label_text, sizeof(label_text), "STEPS");
-      HealthValue steps = health_service_sum_today(HealthMetricStepCount);
-      snprintf(metric_text, sizeof(metric_text), "%d", (int)steps);
-      
-    } else if (active_display_metric == MODE_HEART) {
-      snprintf(label_text, sizeof(label_text), "BPM");
-      HealthValue hr = health_service_peek_current_value(HealthMetricHeartRateBPM);
-      snprintf(metric_text, sizeof(metric_text), "%d", (int)hr);
-      
-    } else if (active_display_metric == MODE_SLEEP) {
-      snprintf(label_text, sizeof(label_text), "SLEEP");
-      HealthValue sleep_sec = health_service_sum_today(HealthMetricSleepSeconds);
-      int hours = (int)(sleep_sec / 3600);
-      int mins = (int)((sleep_sec % 3600) / 60);
-      snprintf(metric_text, sizeof(metric_text), "%dh %dm", hours, mins);
+    // Establish the center X coordinate for the icon drawing area
+    int cx = SY(22); 
+
+    if (active_display_metric == MODE_STEPS) { 
+        snprintf(metric_text, sizeof(metric_text), "%d", cached_steps); 
+        int cy_steps = SY(28); // Pushed down
+        
+        // Draw Left Footprint (rounded rectangle)
+        graphics_fill_rect(ctx, GRect(cx - 8, cy_steps, 6, 10), 3, GCornersAll); 
+        // Draw Right Footprint (slightly higher and to the right)
+        graphics_fill_rect(ctx, GRect(cx + 2, cy_steps - 4, 6, 10), 3, GCornersAll); 
+    } 
+    else if (active_display_metric == MODE_HEART) { 
+        snprintf(metric_text, sizeof(metric_text), "%d", cached_bpm); 
+        int cy_heart = SY(26); // Pushed down
+        
+        // Draw Heart Left Lobe
+        graphics_fill_circle(ctx, GPoint(cx - 5, cy_heart - 3), 5); 
+        // Draw Heart Right Lobe
+        graphics_fill_circle(ctx, GPoint(cx + 5, cy_heart - 3), 5); 
+        
+        // Draw the bottom triangle of the heart using stacked horizontal lines
+        for (int i = 0; i <= 10; i++) {
+            graphics_draw_line(ctx, GPoint(cx - 10 + i, cy_heart + 1 + i), GPoint(cx + 10 - i, cy_heart + 1 + i));
+        }
+    } 
+    else if (active_display_metric == MODE_SLEEP) { 
+        snprintf(metric_text, sizeof(metric_text), "%dh", cached_sleep_hours); 
+        // Draw Moon using the weather font, pushed down to SY(20)
+        graphics_draw_text(ctx, "N", climacons, GRect(0, SY(20), SY(44), SY(34)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
     }
 
-    graphics_draw_text(ctx, label_text, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), GRect(2, SY(18), SY(36), SY(24)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-    graphics_draw_text(ctx, metric_text, fonts_get_system_font(FONT_KEY_GOTHIC_24), GRect(2, SY(40), SY(36), SY(30)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+    // 3. Draw the number metric perfectly aligned with the weather temperature height (SY 42)
+    graphics_draw_text(ctx, metric_text, metric_font, GRect(0, SY(42), SY(44), SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
   }
 #endif
 }
 
 void splash_layer_update_callback(Layer *me, GContext* ctx) {
-    (void)me; 
-    setColors(ctx);
-    graphics_draw_text(ctx, "Timely 2", fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD), GRect(0, 0, device_width, SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-    graphics_draw_text(ctx, CONFIG_VERSION, fonts_get_system_font(FONT_KEY_GOTHIC_28), GRect(0, SY(32), device_width, SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+  (void)me; 
+  setColors(ctx);
+  graphics_draw_text(ctx, "Timely 2", fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD), GRect(0, 0, device_width, SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+  graphics_draw_text(ctx, CONFIG_VERSION, fonts_get_system_font(FONT_KEY_GOTHIC_28), GRect(0, SY(32), device_width, SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
 }
+
 void calendar_layer_update_callback(Layer *me, GContext* ctx) {
-    (void)me;
+  (void)me;
+  int mon = currentTime->tm_mon;
+  int year = currentTime->tm_year + 1900;
+  int daysThisMonth = daysInMonth(mon, year);
+  int specialDay = currentTime->tm_wday - settings.dayOfWeekOffset; 
+  
+  int show_last = 1; 
+  int show_next = 1; 
+  switch ( adv_settings.week_pattern ) {
+    case 0: break;
+    case 1: show_last = 2; show_next = 0; break;
+    case 2: show_last = 0; show_next = 2; break;
+  }
 
-    int mon = currentTime->tm_mon;
-    int year = currentTime->tm_year + 1900;
-    int daysThisMonth = daysInMonth(mon, year);
-    int specialDay = currentTime->tm_wday - settings.dayOfWeekOffset; 
-    
-    int show_last = 1; 
-    int show_next = 1; 
-    switch ( adv_settings.week_pattern ) {
-      case 0: break;
-      case 1: show_last = 2; show_next = 0; break;
-      case 2: show_last = 0; show_next = 2; break;
+  int calendar[21];
+  int cellNum = 0;   
+  int daysVisPrevMonth = 0;
+  int daysVisNextMonth = 0;
+  int daysPriorToToday = specialDay; 
+  int daysAfterToday   = (6 - specialDay) % 7; 
+
+  if (currentTime->tm_wday < settings.dayOfWeekOffset) { 
+      daysPriorToToday += 7 * (show_last+1); 
+      specialDay += 7;
+  } else {
+    daysPriorToToday += 7 * show_last; 
+  }
+  daysAfterToday += 7 * show_next; 
+
+  if ( daysPriorToToday >= currentTime->tm_mday ) {
+    int daysInPrevMonth = daysInMonth(mon - 1,year); 
+    daysVisPrevMonth = daysPriorToToday - currentTime->tm_mday + 1;
+    for (int i = 0; i < daysVisPrevMonth; i++, cellNum++ ) {
+      calendar[cellNum] = daysInPrevMonth + i - daysVisPrevMonth + 1;
+    }
+  }
+
+  int firstDayShownThisMonth = daysVisPrevMonth + currentTime->tm_mday - daysPriorToToday;
+  for (int i = firstDayShownThisMonth; i < currentTime->tm_mday; i++, cellNum++ ) {
+    calendar[cellNum] = i;
+  }
+
+  calendar[cellNum] = currentTime->tm_mday;
+  cellNum++;
+
+  if ( currentTime->tm_mday + daysAfterToday > daysThisMonth ) {
+    daysVisNextMonth = currentTime->tm_mday + daysAfterToday - daysThisMonth;
+  }
+
+  int daysLeftThisMonth = daysAfterToday - daysVisNextMonth;
+  for (int i = 0; i < daysLeftThisMonth; i++, cellNum++ ) {
+    calendar[cellNum] = i + currentTime->tm_mday + 1;
+  }
+
+  for (int i = 0; i < daysVisNextMonth; i++, cellNum++ ) {
+    calendar[cellNum] = i + 1;
+  }
+
+  #define CAL_DAYS   7   
+  #define CAL_GAP    1   
+  #define CAL_LEFT   2   
+  int cal_height = SY(18);  
+  int cal_width = (device_width - 2 * CAL_LEFT) / CAL_DAYS;
+  int weeks  =  3;  
+      
+  GFont current = cal_normal;
+  int font_vert_offset = 0;
+  if (strcmp(lang_gen.language,"RU") == 0 ) { font_vert_offset = -2; }
+
+  if (settings.grid) {
+    setInvColors(ctx);
+    graphics_fill_rect(ctx, GRect (CAL_LEFT + CAL_GAP, cal_height - CAL_GAP, device_width - 2 * (CAL_LEFT + CAL_GAP), cal_height * weeks), 0, GCornerNone);
+    setColors(ctx);
+  }
+
+  for (int col = 0; col < CAL_DAYS; col++) {
+    int weekday = col + settings.dayOfWeekOffset;
+    if (weekday > 6) { weekday -= 7; }
+
+    if (col == specialDay) {
+      current = cal_bold;
+      font_vert_offset = -3;
+      if (strcmp(lang_gen.language,"RU") == 0 ) { font_vert_offset = -2; }
     }
 
-    int calendar[21];
-    int cellNum = 0;   
-    int daysVisPrevMonth = 0;
-    int daysVisNextMonth = 0;
-    int daysPriorToToday = specialDay; 
-    int daysAfterToday   = (6 - specialDay) % 7; 
-
-    if (currentTime->tm_wday < settings.dayOfWeekOffset) { 
-        daysPriorToToday += 7 * (show_last+1); 
-        specialDay += 7;
-    } else {
-      daysPriorToToday += 7 * show_last; 
-    }
-    daysAfterToday += 7 * show_next; 
-
-    if ( daysPriorToToday >= currentTime->tm_mday ) {
-      int daysInPrevMonth = daysInMonth(mon - 1,year); 
-      daysVisPrevMonth = daysPriorToToday - currentTime->tm_mday + 1;
-      for (int i = 0; i < daysVisPrevMonth; i++, cellNum++ ) {
-        calendar[cellNum] = daysInPrevMonth + i - daysVisPrevMonth + 1;
+    graphics_draw_text(ctx, lang_gen.abbrDaysOfWeek[weekday], current, GRect(cal_width * col + CAL_LEFT + CAL_GAP, CAL_GAP + font_vert_offset, cal_width, cal_height), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+    if (col == specialDay) {
+      if (strcmp(lang_gen.language,"RU") == 0 ) {
+        graphics_draw_text(ctx, lang_gen.abbrDaysOfWeek[weekday], current, GRect(cal_width * col + CAL_LEFT + CAL_GAP + 1, CAL_GAP + font_vert_offset, cal_width, cal_height), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
       }
+      current = cal_normal;
+      font_vert_offset = 0;
+      if (strcmp(lang_gen.language,"RU") == 0 ) { font_vert_offset = -2; }
     }
+  }
 
-    int firstDayShownThisMonth = daysVisPrevMonth + currentTime->tm_mday - daysPriorToToday;
-    for (int i = firstDayShownThisMonth; i < currentTime->tm_mday; i++, cellNum++ ) {
-      calendar[cellNum] = i;
-    }
-
-    calendar[cellNum] = currentTime->tm_mday;
-    cellNum++;
-
-    if ( currentTime->tm_mday + daysAfterToday > daysThisMonth ) {
-      daysVisNextMonth = currentTime->tm_mday + daysAfterToday - daysThisMonth;
-    }
-
-    int daysLeftThisMonth = daysAfterToday - daysVisNextMonth;
-    for (int i = 0; i < daysLeftThisMonth; i++, cellNum++ ) {
-      calendar[cellNum] = i + currentTime->tm_mday + 1;
-    }
-
-    for (int i = 0; i < daysVisNextMonth; i++, cellNum++ ) {
-      calendar[cellNum] = i + 1;
-    }
-
-    #define CAL_DAYS   7   
-    #define CAL_GAP    1   
-    #define CAL_LEFT   2   
-    int cal_height = SY(18);  
-    int cal_width = (device_width - 2 * CAL_LEFT) / CAL_DAYS;
-
-    int weeks  =  3;  
-        
-    GFont current = cal_normal;
-    int font_vert_offset = 0;
-    if (strcmp(lang_gen.language,"RU") == 0 ) { font_vert_offset = -2; }
-
-    if (settings.grid) {
-      setInvColors(ctx);
-      graphics_fill_rect(ctx, GRect (CAL_LEFT + CAL_GAP, cal_height - CAL_GAP, device_width - 2 * (CAL_LEFT + CAL_GAP), cal_height * weeks), 0, GCornerNone);
-      setColors(ctx);
-    }
+  GFont normal = fonts_get_system_font(device_height > 168 ? FONT_KEY_GOTHIC_18 : FONT_KEY_GOTHIC_14);
+  GFont bold   = fonts_get_system_font(device_height > 168 ? FONT_KEY_GOTHIC_24_BOLD : FONT_KEY_GOTHIC_18_BOLD);
+  current = normal;
+  font_vert_offset = 0;
+  int week = 0;
+  int specialRow = show_last+1;
+  
+  for (int row = 1; row <= 3; row++) {
+    week++;
     for (int col = 0; col < CAL_DAYS; col++) {
-      int weekday = col + settings.dayOfWeekOffset;
-      if (weekday > 6) { weekday -= 7; }
-
-      if (col == specialDay) {
-        current = cal_bold;
+      if ( row == specialRow && col == specialDay) {
+        if (settings.day_invert) {
+          setInvColors(ctx);
+        }
+        current = bold;
         font_vert_offset = -3;
-        if (strcmp(lang_gen.language,"RU") == 0 ) { font_vert_offset = -2; }
       }
 
-      graphics_draw_text(ctx, lang_gen.abbrDaysOfWeek[weekday], current, GRect(cal_width * col + CAL_LEFT + CAL_GAP, CAL_GAP + font_vert_offset, cal_width, cal_height), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-      if (col == specialDay) {
-        if (strcmp(lang_gen.language,"RU") == 0 ) {
-          graphics_draw_text(ctx, lang_gen.abbrDaysOfWeek[weekday], current, GRect(cal_width * col + CAL_LEFT + CAL_GAP + 1, CAL_GAP + font_vert_offset, cal_width, cal_height), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-        }
-        current = cal_normal;
+      graphics_fill_rect(ctx, GRect (cal_width * col + CAL_LEFT + CAL_GAP, cal_height * week, cal_width - CAL_GAP, cal_height - CAL_GAP), 0, GCornerNone);
+
+      char date_text[3];
+      snprintf(date_text, sizeof(date_text), "%d", calendar[col + 7 * (row - 1)]);
+      graphics_draw_text(ctx, date_text, current, GRect(cal_width * col + CAL_LEFT, cal_height * week - CAL_GAP + font_vert_offset, cal_width, cal_height), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+
+      if ( row == specialRow && col == specialDay) {
+        setColors(ctx);
+        current = normal;
         font_vert_offset = 0;
-        if (strcmp(lang_gen.language,"RU") == 0 ) { font_vert_offset = -2; }
       }
     }
-
-    GFont normal = fonts_get_system_font(device_height > 168 ? FONT_KEY_GOTHIC_18 : FONT_KEY_GOTHIC_14);
-    GFont bold   = fonts_get_system_font(device_height > 168 ? FONT_KEY_GOTHIC_24_BOLD : FONT_KEY_GOTHIC_18_BOLD);
-    current = normal;
-    font_vert_offset = 0;
-
-    int week = 0;
-    int specialRow = show_last+1;
-    
-    for (int row = 1; row <= 3; row++) {
-      week++;
-      for (int col = 0; col < CAL_DAYS; col++) {
-        if ( row == specialRow && col == specialDay) {
-          if (settings.day_invert) {
-            setInvColors(ctx);
-          }
-          current = bold;
-          font_vert_offset = -3;
-        }
-
-        graphics_fill_rect(ctx, GRect (cal_width * col + CAL_LEFT + CAL_GAP, cal_height * week, cal_width - CAL_GAP, cal_height - CAL_GAP), 0, GCornerNone);
-
-        char date_text[3];
-        snprintf(date_text, sizeof(date_text), "%d", calendar[col + 7 * (row - 1)]);
-        graphics_draw_text(ctx, date_text, current, GRect(cal_width * col + CAL_LEFT, cal_height * week - CAL_GAP + font_vert_offset, cal_width, cal_height), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-
-        if ( row == specialRow && col == specialDay) {
-          setColors(ctx);
-          current = normal;
-          font_vert_offset = 0;
-        }
-      }
-    }
+  }
 }
 
 void update_date_text() {
-    const char *datestr[] = {
-      "%m.%d.%Y", "%m-%d-%Y", "%m/%d/%Y", "%m %d %Y", "%m%d%Y", 
-      "%m.%d.%y", "%m-%d-%y", "%m/%d/%y", "%m %d %y", "%m%d%y", 
-      "%m.%e.%Y", "%m-%e-%Y", "%m/%e/%Y", "%m %e %Y", "%m%e%Y", 
-      "%m.%e.%y", "%m-%e-%y", "%m/%e/%y", "%m %e %y", "%m%e%y", 
-      "%d.%m.%Y", "%d-%m-%Y", "%d/%m/%Y", "%d %m %Y", "%d%m%Y", 
-      "%d.%m.%y", "%d-%m-%y", "%d/%m/%y", "%d %m %y", "%d%m%y", 
-      "%e.%m.%Y", "%e-%m-%Y", "%e/%m/%Y", "%e %m %Y", "%e%m%Y", 
-      "%e.%m.%y", "%e-%m-%y", "%e/%m/%y", "%e %m %y", "%e%m%y", 
-      "%Y.%m.%d", "%Y-%m-%d", "%Y/%m/%d", "%Y %m %d", "%Y%m%d", 
-      "%y.%m.%d", "%y-%m-%d", "%y/%m/%d", "%y %m %d", "%y%m%d", 
-      "%Y.%m.%e", "%Y-%m-%e", "%Y/%m/%e", "%Y %m %e", "%Y%m%e", 
-      "%y.%m.%e", "%y-%m-%e", "%y/%m/%e", "%y %m %e", "%y%m%e", 
-    };
-    char date_text[24];
-    static char date_string[64];
+  const char *datestr[] = {
+    "%m.%d.%Y", "%m-%d-%Y", "%m/%d/%Y", "%m %d %Y", "%m%d%Y", 
+    "%m.%d.%y", "%m-%d-%y", "%m/%d/%y", "%m %d %y", "%m%d%y", 
+    "%m.%e.%Y", "%m-%e-%Y", "%m/%e/%Y", "%m %e %Y", "%m%e%Y", 
+    "%m.%e.%y", "%m-%e-%y", "%m/%e/%y", "%m %e %y", "%m%e%y", 
+    "%d.%m.%Y", "%d-%m-%Y", "%d/%m/%Y", "%d %m %Y", "%d%m%Y", 
+    "%d.%m.%y", "%d-%m-%y", "%d/%m/%y", "%d %m %y", "%d%m%y", 
+    "%e.%m.%Y", "%e-%m-%Y", "%e/%m/%Y", "%e %m %Y", "%e%m%Y", 
+    "%e.%m.%y", "%e-%m-%y", "%e/%m/%y", "%e %m %y", "%e%m%y", 
+    "%Y.%m.%d", "%Y-%m-%d", "%Y/%m/%d", "%Y %m %d", "%Y%m%d", 
+    "%y.%m.%d", "%y-%m-%d", "%y/%m/%d", "%y %m %d", "%y%m%d", 
+    "%Y.%m.%e", "%Y-%m-%e", "%Y/%m/%e", "%Y %m %e", "%Y%m%e", 
+    "%y.%m.%e", "%y-%m-%e", "%y/%m/%e", "%y %m %e", "%y%m%e", 
+  };
+  char date_text[24];
+  static char date_string[64];
 
-    if (settings.date_format < 195) { 
-      char date_text_2[24];
-      switch ( settings.date_format ) {
-      case 0: 
-        strftime(date_text, sizeof(date_text), "%d, %Y", currentTime); 
-        snprintf(date_string, sizeof(date_string), "%s %s", lang_months.monthsNames[currentTime->tm_mon], date_text); 
-        break;
-      case 1: 
-        strftime(date_text, sizeof(date_text), "%d, '%y", currentTime); 
-        snprintf(date_string, sizeof(date_string), "%s %s", lang_months.monthsNames[currentTime->tm_mon], date_text); 
-        break;
-      case 2: 
-        strftime(date_text, sizeof(date_text), "%d, %Y", currentTime); 
-        snprintf(date_string, sizeof(date_string), "%s %s", lang_gen.abbrMonthsNames[currentTime->tm_mon], date_text); 
-        break;
-      case 3: 
-        strftime(date_text, sizeof(date_text), "%d, '%y", currentTime); 
-        snprintf(date_string, sizeof(date_string), "%s %s", lang_gen.abbrMonthsNames[currentTime->tm_mon], date_text); 
-        break;
-      case 11: 
-        strftime(date_text, sizeof(date_text), "%d", currentTime); 
-        strftime(date_text_2, sizeof(date_text_2), "%Y", currentTime); 
-        snprintf(date_string, sizeof(date_string), "%s %s %s", date_text, lang_months.monthsNames[currentTime->tm_mon], date_text_2); 
-        break;
-      case 12: 
-        strftime(date_text, sizeof(date_text), "%d", currentTime); 
-        strftime(date_text_2, sizeof(date_text_2), "'%y", currentTime); 
-        snprintf(date_string, sizeof(date_string), "%s %s %s", date_text, lang_months.monthsNames[currentTime->tm_mon], date_text_2); 
-        break;
-      case 13: 
-        strftime(date_text, sizeof(date_text), "%d", currentTime); 
-        strftime(date_text_2, sizeof(date_text_2), "%Y", currentTime); 
-        snprintf(date_string, sizeof(date_string), "%s %s %s", date_text, lang_gen.abbrMonthsNames[currentTime->tm_mon], date_text_2); 
-        break;
-      case 14: 
-        strftime(date_text, sizeof(date_text), "%d", currentTime); 
-        strftime(date_text_2, sizeof(date_text_2), "'%y", currentTime); 
-        snprintf(date_string, sizeof(date_string), "%s %s %s", date_text, lang_gen.abbrMonthsNames[currentTime->tm_mon], date_text_2); 
-        break;
-      }
-    } else { 
-      if ((settings.date_format >= 195) && (settings.date_format <= 254)) { 
-        strftime(date_text, sizeof(date_text), datestr[settings.date_format-195], currentTime);
-      } else if (settings.date_format==255) {
-        strftime(date_text, sizeof(date_text), settings.strftime_format, currentTime);  
-      }
-      snprintf(date_string, sizeof(date_string), "%s", date_text); 
+  if (settings.date_format < 195) { 
+    char date_text_2[24];
+    switch ( settings.date_format ) {
+    case 0: 
+      strftime(date_text, sizeof(date_text), "%d, %Y", currentTime); 
+      snprintf(date_string, sizeof(date_string), "%s %s", lang_months.monthsNames[currentTime->tm_mon], date_text); 
+      break;
+    case 1: 
+      strftime(date_text, sizeof(date_text), "%d, '%y", currentTime); 
+      snprintf(date_string, sizeof(date_string), "%s %s", lang_months.monthsNames[currentTime->tm_mon], date_text); 
+      break;
+    case 2: 
+      strftime(date_text, sizeof(date_text), "%d, %Y", currentTime); 
+      snprintf(date_string, sizeof(date_string), "%s %s", lang_gen.abbrMonthsNames[currentTime->tm_mon], date_text); 
+      break;
+    case 3: 
+      strftime(date_text, sizeof(date_text), "%d, '%y", currentTime); 
+      snprintf(date_string, sizeof(date_string), "%s %s", lang_gen.abbrMonthsNames[currentTime->tm_mon], date_text); 
+      break;
+    case 11: 
+      strftime(date_text, sizeof(date_text), "%d", currentTime); 
+      strftime(date_text_2, sizeof(date_text_2), "%Y", currentTime); 
+      snprintf(date_string, sizeof(date_string), "%s %s %s", date_text, lang_months.monthsNames[currentTime->tm_mon], date_text_2); 
+      break;
+    case 12: 
+      strftime(date_text, sizeof(date_text), "%d", currentTime); 
+      strftime(date_text_2, sizeof(date_text_2), "'%y", currentTime); 
+      snprintf(date_string, sizeof(date_string), "%s %s %s", date_text, lang_months.monthsNames[currentTime->tm_mon], date_text_2); 
+      break;
+    case 13: 
+      strftime(date_text, sizeof(date_text), "%d", currentTime); 
+      strftime(date_text_2, sizeof(date_text_2), "%Y", currentTime); 
+      snprintf(date_string, sizeof(date_string), "%s %s %s", date_text, lang_gen.abbrMonthsNames[currentTime->tm_mon], date_text_2); 
+      break;
+    case 14: 
+      strftime(date_text, sizeof(date_text), "%d", currentTime); 
+      strftime(date_text_2, sizeof(date_text_2), "'%y", currentTime); 
+      snprintf(date_string, sizeof(date_string), "%s %s %s", date_text, lang_gen.abbrMonthsNames[currentTime->tm_mon], date_text_2); 
+      break;
     }
-    text_layer_set_text(date_layer, date_string);
+  } else { 
+    if ((settings.date_format >= 195) && (settings.date_format <= 254)) { 
+      strftime(date_text, sizeof(date_text), datestr[settings.date_format-195], currentTime);
+    } else if (settings.date_format==255) {
+      strftime(date_text, sizeof(date_text), settings.strftime_format, currentTime);  
+    }
+    snprintf(date_string, sizeof(date_string), "%s", date_text); 
+  }
+  text_layer_set_text(date_layer, date_string);
 }
 
 void update_time_text() {
@@ -623,6 +541,7 @@ void update_timezone_text(TextLayer *which_layer) {
   }
   text_layer_set_text(which_layer, timezone_text);
 }
+
 void process_show_week() {
   switch ( settings.show_week ) {
   case 0: return;
@@ -732,7 +651,6 @@ void toggle_weather() {
   }
 }
 
-// Helper function to safely isolate the preprocessor logic
 void update_battery_text_size(bool is_large) {
 #if defined(PBL_PLATFORM_EMERY)
   if (is_large) {
@@ -750,13 +668,12 @@ void toggle_statusbar() {
     layer_set_hidden(statusbar, false);
     layer_add_child(datetime_layer, text_layer_get_layer(date_layer));
     
-    // IF SUBTEXT IS ON: Date shifts Right, leaving huge room for Phone Battery
     if (adv_settings.weather_update && (settings.show_day || settings.show_week || settings.show_am_pm)) {
       text_layer_set_text_alignment(date_layer, GTextAlignmentRight);
-      update_battery_text_size(true); // Call helper to resize UP
+      update_battery_text_size(true);
     } else {
       text_layer_set_text_alignment(date_layer, GTextAlignmentCenter);
-      update_battery_text_size(false); // Call helper to resize DOWN
+      update_battery_text_size(false); 
     }
     
     layer_add_child(statusbar, bitmap_layer_get_layer(bmp_charging_layer));
@@ -766,7 +683,7 @@ void toggle_statusbar() {
     layer_set_hidden(statusbar, true);
     layer_add_child(slot_status, text_layer_get_layer(date_layer));
     text_layer_set_text_alignment(date_layer, GTextAlignmentCenter);
-    update_battery_text_size(false); // Default to smaller size
+    update_battery_text_size(false); 
     
     layer_add_child(datetime_layer, bitmap_layer_get_layer(bmp_charging_layer));
     layer_add_child(datetime_layer, battery_layer);
@@ -782,53 +699,40 @@ void slot_bot_layer_update_callback(Layer *me, GContext* ctx) {}
 void battery_layer_update_callback(Layer *me, GContext* ctx) {
   setColors(ctx);
   
-  // 1. Draw Outline
   graphics_draw_rect(ctx, GRect(stat_batt_left, s_batt_top, s_batt_width, s_batt_height));
   graphics_draw_rect(ctx, GRect(stat_batt_left + s_batt_width - 1,
                                 s_batt_top + (s_batt_height - s_batt_nib_height)/2,
                                 STAT_BATT_NIB_WIDTH,
                                 s_batt_nib_height));
 
-  // Calculate the fill width dynamically
   uint8_t battery_meter = battery_percent * (s_batt_width - 4) / 100;
-
-  // 2. Define the exact dynamic colors based on the user's Dark/Light theme
   GColor fill_color = settings.inverted ? GColorBlack : GColorWhite;
   GColor empty_color = settings.inverted ? GColorWhite : GColorBlack;
 
-  // 3. Draw the solid background fill
   graphics_context_set_fill_color(ctx, fill_color);
   graphics_fill_rect(ctx, GRect(stat_batt_left + 2, s_batt_top + 2, battery_meter, s_batt_height - 4), 0, GCornerNone);
 
-  // 4. Prepare the text payload
   char batt_str[5];
   snprintf(batt_str, sizeof(batt_str), "%d", battery_percent);
   GFont batt_font = fonts_get_system_font(device_height > 168 ? FONT_KEY_GOTHIC_18_BOLD : FONT_KEY_GOTHIC_14);
   
-  // Determine base text bounds
   int text_y_offset = (device_height > 168) ? 3 : 2;
   GRect tb = GRect(stat_batt_left, s_batt_top - text_y_offset, s_batt_width, s_batt_height + 4);
 
-  // Determine colors so the text contrasts with the MAJORITY of the battery bar
   GColor text_color = (battery_percent >= 50) ? empty_color : fill_color;
   GColor outline_color = (battery_percent >= 50) ? fill_color : empty_color;
 
-  // 5. Draw the 1-pixel outline (Left, Right, Up, Down) for perfect contrast
   graphics_context_set_text_color(ctx, outline_color);
   graphics_draw_text(ctx, batt_str, batt_font, GRect(tb.origin.x - 1, tb.origin.y, tb.size.w, tb.size.h), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
   graphics_draw_text(ctx, batt_str, batt_font, GRect(tb.origin.x + 1, tb.origin.y, tb.size.w, tb.size.h), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
   graphics_draw_text(ctx, batt_str, batt_font, GRect(tb.origin.x, tb.origin.y - 1, tb.size.w, tb.size.h), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
   graphics_draw_text(ctx, batt_str, batt_font, GRect(tb.origin.x, tb.origin.y + 1, tb.size.w, tb.size.h), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
 
-  // 6. Draw the main centered text over the outline
   graphics_context_set_text_color(ctx, text_color);
   graphics_draw_text(ctx, batt_str, batt_font, tb, GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
 }
 
 static void request_weather(void *data) {
-  // CACHING FIX: We no longer reset the condition to 'h' (loading) here. 
-  // If the request fails, the old weather icon and temp stay gracefully on screen.
-  
   DictionaryIterator *iter;
   app_message_outbox_begin(&iter);
   if (iter == NULL) return;
@@ -916,6 +820,7 @@ void set_status_charging_icon() {
     }
   }
 }
+
 static void toggle_slot_bottom(void *data) {
   watch_version_send(NULL); 
   static Layer* last = NULL;
@@ -936,8 +841,6 @@ static void handle_battery(BatteryChargeState charge_state) {
   }
 
   set_status_charging_icon();
-
-
   layer_mark_dirty(battery_layer);
   statusbar_visible();
   toggle_statusbar();
@@ -1060,6 +963,7 @@ bool dnd_period_check() {
   dnd_period_active = period_check(adv_settings.DND_start, adv_settings.DND_stop, false);
   return dnd_period_active;
 }
+
 bool hourvibe_period_check() {
   vibe_period_active = period_check(adv_settings.vibe_hour_start, adv_settings.vibe_hour_stop, true);
   return vibe_period_active;
@@ -1082,7 +986,6 @@ void set_layer_attr_cfont(TextLayer *textlayer, uint32_t FontResHandle, GTextAli
 }
 
 static void window_load(Window *window) {
-
 #if defined(PBL_PLATFORM_EMERY)
   unifont_16 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_FUTURA_CONDENSED_65));
   unifont_16_bold = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_FUTURA_CONDENSED_65));
@@ -1222,7 +1125,6 @@ static void window_load(Window *window) {
   
   layer_add_child(statusbar, text_layer_get_layer(text_connection_layer));
   
-  // Initialize standard for ALL watches. (It will be dynamically resized in toggle_statusbar)
   text_phone_battery_layer = text_layer_create( GRect(4, s_batt_top - 3, 64, s_batt_height + 4) );
   set_layer_attr_sfont(text_phone_battery_layer, FONT_KEY_GOTHIC_18_BOLD, GTextAlignmentLeft);
 
@@ -1318,6 +1220,9 @@ void handle_minute_tick(struct tm *tick_time, TimeUnits units_changed)
     }
     
 #if defined(PBL_PLATFORM_EMERY)
+    if (complication_mode != MODE_WEATHER) {
+      update_health_cache();
+    }
     if (complication_mode == MODE_ROTATE) {
       active_display_metric = (active_display_metric + 1) % 4;
       layer_mark_dirty(weather_layer);
@@ -1362,6 +1267,7 @@ static void switch_tick_handler(void) {
 
 void my_out_sent_handler(DictionaryIterator *sent, void *context) {
 }
+
 void my_out_fail_handler(DictionaryIterator *failed, AppMessageResult reason, void *context) {
 }
 
@@ -1374,7 +1280,6 @@ void in_weather_handler(DictionaryIterator *received, void *context) {
     Tuple *temp_key = dict_find(received, MESSAGE_KEY_weather_temp);
     Tuple *cond_key = dict_find(received, MESSAGE_KEY_weather_cond);
     
-    // CACHING FIX: Only update if the temperature is valid (not 999)
     if (temp_key != NULL && temp_key->value->int16 != 999) { 
       weather.current = temp_key->value->int16; 
       if (cond_key != NULL) { 
@@ -1435,7 +1340,7 @@ void in_configuration_handler(DictionaryIterator *received, void *context) {
       text_layer_set_text_color(text_connection_layer, t_color);
       text_layer_set_text_color(text_phone_battery_layer, t_color);
       layer_mark_dirty(window_get_root_layer(window));
-      handle_battery(battery_state_service_peek()); // Force the dynamic color to recalculate
+      handle_battery(battery_state_service_peek());
       layer_mark_dirty(window_get_root_layer(window));
     }
 
@@ -1734,12 +1639,12 @@ static void init(void) {
   }
   
 #if defined(PBL_PLATFORM_EMERY)
+  complication_mode = MODE_WEATHER;
   if (persist_exists(PK_COMPLICATION_MODE)) {
-    complication_mode = persist_read_int(PK_COMPLICATION_MODE);
+    complication_mode = (uint8_t)persist_read_int(PK_COMPLICATION_MODE);
   }
-  if (complication_mode != MODE_ROTATE) {
-    active_display_metric = complication_mode;
-  }
+  active_display_metric = complication_mode;
+  update_health_cache(); 
 #endif
 
   if (DEBUGLOG == 1) { debug.general = true; }
@@ -1755,7 +1660,6 @@ static void init(void) {
     .unload = window_unload
   });
   
-  // Handled natively via settings check in window_load now
   window_stack_push(window, false);
 
   switch_tick_handler();
