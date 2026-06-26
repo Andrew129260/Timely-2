@@ -76,12 +76,30 @@ static int s_batt_width      = 44;
 #define PK_DEBUGGING     5
 #define PK_ADV_SETTINGS  6
 #define PK_PHONE_BATT    7
+#define PK_COMPLICATION_MODE 8 
 
 // Message Type Values (Payloads) matching PebbleKit JS
 #define MSG_VAL_SEND_BATT_PERCENT    100
 #define MSG_VAL_TIMEZONE_OFFSET      103
 #define MSG_VAL_SEND_WATCH_VERSION   104
 #define MSG_VAL_REQUEST_WEATHER      106
+
+#if defined(PBL_PLATFORM_EMERY)
+// Emery Only: Full State Machine
+enum ComplicationMode {
+  MODE_STEPS = 0,
+  MODE_WEATHER = 1,
+  MODE_HEART = 2,
+  MODE_SLEEP = 3,
+  MODE_ROTATE = 4
+};
+static uint8_t complication_mode = MODE_WEATHER;
+static uint8_t active_display_metric = MODE_WEATHER;
+#else
+// Legacy Platforms Failsafe
+#define MODE_WEATHER 1
+static uint8_t active_display_metric = MODE_WEATHER;
+#endif
 
 // primary coordinates
 #define LAYOUT_STAT           0 
@@ -194,7 +212,6 @@ persist_adv_settings adv_settings = {
   .slots = { 0, 1, 2, 3, 0, 1, 0, 1, 0, 1 } 
 };
 
-// Safe generic integer parser for Clay variables
 int32_t get_int(Tuple *t) {
   if (!t) return 0;
   if (t->type == TUPLE_UINT) {
@@ -209,7 +226,6 @@ int32_t get_int(Tuple *t) {
   return 0;
 }
 
-// How many days are/were in the month
 int daysInMonth(int mon, int year) {
     mon++; 
     if (mon == 4 || mon == 6 || mon == 9 || mon == 11) { return 30; }
@@ -244,18 +260,53 @@ void setInvColors(GContext* ctx) {
 
 void weather_layer_update_callback(Layer *me, GContext* ctx) {
   (void)me; 
-  static char temp_current[10] = "N/A  ";
-  static char cond_current[] = "0";
-  if (weather.current < 900) {
-    snprintf(temp_current, sizeof(temp_current), "%d\u00b0", weather.current);
-  } else {
-    snprintf(temp_current, sizeof(temp_current), "N/A");
-  }
-  snprintf(cond_current, sizeof(cond_current), "%s", weather.condition);
-
   setColors(ctx);
-  graphics_draw_text(ctx, cond_current, climacons, GRect(2, SY(16), SY(34), SY(34)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-  graphics_draw_text(ctx, temp_current, fonts_get_system_font(device_height > 168 ? FONT_KEY_GOTHIC_28 : FONT_KEY_GOTHIC_24), GRect(2, SY(42), SY(36), SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+
+#if defined(PBL_PLATFORM_EMERY)
+  if (active_display_metric == MODE_WEATHER) {
+#endif
+
+    // 1. WEATHER RENDERING (Fallback default for all watches)
+    static char temp_current[10] = "N/A  ";
+    static char cond_current[] = "0";
+    if (weather.current < 900) {
+      snprintf(temp_current, sizeof(temp_current), "%d\u00b0", weather.current);
+    } else {
+      snprintf(temp_current, sizeof(temp_current), "N/A");
+    }
+    snprintf(cond_current, sizeof(cond_current), "%s", weather.condition);
+
+    graphics_draw_text(ctx, cond_current, climacons, GRect(2, SY(16), SY(34), SY(34)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+    graphics_draw_text(ctx, temp_current, fonts_get_system_font(device_height > 168 ? FONT_KEY_GOTHIC_28 : FONT_KEY_GOTHIC_24), GRect(2, SY(42), SY(36), SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+  
+#if defined(PBL_PLATFORM_EMERY)
+  } else {
+    // 2. HEALTH METRICS RENDERING (Time 2 Only)
+    static char metric_text[16] = "";
+    static char label_text[10] = "";
+
+    if (active_display_metric == MODE_STEPS) {
+      snprintf(label_text, sizeof(label_text), "STEPS");
+      HealthValue steps = health_service_sum_today(HealthMetricStepCount);
+      snprintf(metric_text, sizeof(metric_text), "%d", (int)steps);
+      
+    } else if (active_display_metric == MODE_HEART) {
+      snprintf(label_text, sizeof(label_text), "BPM");
+      HealthValue hr = health_service_peek_current_value(HealthMetricHeartRateBPM);
+      snprintf(metric_text, sizeof(metric_text), "%d", (int)hr);
+      
+    } else if (active_display_metric == MODE_SLEEP) {
+      snprintf(label_text, sizeof(label_text), "SLEEP");
+      HealthValue sleep_sec = health_service_sum_today(HealthMetricSleepSeconds);
+      int hours = (int)(sleep_sec / 3600);
+      int mins = (int)((sleep_sec % 3600) / 60);
+      snprintf(metric_text, sizeof(metric_text), "%dh %dm", hours, mins);
+    }
+
+    graphics_draw_text(ctx, label_text, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), GRect(2, SY(18), SY(36), SY(24)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+    graphics_draw_text(ctx, metric_text, fonts_get_system_font(FONT_KEY_GOTHIC_24), GRect(2, SY(40), SY(36), SY(30)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+  }
+#endif
 }
 
 void splash_layer_update_callback(Layer *me, GContext* ctx) {
@@ -1265,6 +1316,13 @@ void handle_minute_tick(struct tm *tick_time, TimeUnits units_changed)
     if (settings.vibe_hour && vibe_period_active) {
       generate_vibe(settings.vibe_hour); 
     }
+    
+#if defined(PBL_PLATFORM_EMERY)
+    if (complication_mode == MODE_ROTATE) {
+      active_display_metric = (active_display_metric + 1) % 4;
+      layer_mark_dirty(weather_layer);
+    }
+#endif
   }
 
   if (units_changed & DAY_UNIT) {
@@ -1325,8 +1383,6 @@ void in_weather_handler(DictionaryIterator *received, void *context) {
       weather.requests = 0;
       weather.failures = 0;
     } else {
-      // It was 999 (an error). We ignore the payload and keep our current data, 
-      // but tick up the failure counter.
       weather.failures++;
     }
     
@@ -1342,6 +1398,20 @@ void in_timezone_handler(DictionaryIterator *received, void *context) {
 }
 
 void in_configuration_handler(DictionaryIterator *received, void *context) {
+    
+#if defined(PBL_PLATFORM_EMERY)
+    Tuple *comp_mode = dict_find(received, MESSAGE_KEY_complication_mode);
+    if (comp_mode != NULL) {
+      complication_mode = get_int(comp_mode);
+      persist_write_int(PK_COMPLICATION_MODE, complication_mode);
+      
+      if (complication_mode != MODE_ROTATE) {
+        active_display_metric = complication_mode;
+      }
+      layer_mark_dirty(weather_layer);
+    }
+#endif
+    
     Tuple *debugging = dict_find(received, MESSAGE_KEY_debugging_on);
     if (debugging != NULL) {
       debug.general = (get_int(debugging) != 0);
@@ -1662,6 +1732,15 @@ static void init(void) {
       persist_read_data(PK_ADV_SETTINGS, &adv_settings, sizeof(adv_settings) );
     }
   }
+  
+#if defined(PBL_PLATFORM_EMERY)
+  if (persist_exists(PK_COMPLICATION_MODE)) {
+    complication_mode = persist_read_int(PK_COMPLICATION_MODE);
+  }
+  if (complication_mode != MODE_ROTATE) {
+    active_display_metric = complication_mode;
+  }
+#endif
 
   if (DEBUGLOG == 1) { debug.general = true; }
   if (TRANSLOG == 1) { debug.language = true; }

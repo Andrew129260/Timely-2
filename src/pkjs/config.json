@@ -15,6 +15,21 @@
     "items": [
       { "type": "heading", "defaultValue": "Clock" },
       { "type": "select", "messageKey": "intl_fmt_date", "label": "Date Format", "defaultValue": "0", "options": [ { "label": "MMMM DD, YYYY", "value": "0" }, { "label": "DD.MM.YYYY", "value": "1" }, { "label": "MM/DD/YYYY", "value": "197" }, { "label": "YYYY/MM/DD", "value": "237" } ] },
+      
+      {
+        "type": "select",
+        "messageKey": "complication_mode",
+        "label": "Complication Slot",
+        "defaultValue": "1",
+        "options": [
+          { "label": "Steps Only", "value": "0" },
+          { "label": "Weather Only", "value": "1" },
+          { "label": "Heart Rate Only", "value": "2" },
+          { "label": "Sleep Only", "value": "3" },
+          { "label": "Rotate Hourly", "value": "4" }
+        ]
+      },
+
       { "type": "select", "messageKey": "style_week", "label": "Below Time, Left", "defaultValue": "0", "options": [ { "label": "-", "value": "0" }, { "label": "Week", "value": "1" }, { "label": "TZ", "value": "2" }, { "label": "AM/PM", "value": "3" } ] },
       { "type": "select", "messageKey": "style_day", "label": "Below Time, Middle", "defaultValue": "0", "options": [ { "label": "-", "value": "0" }, { "label": "Day", "value": "1" }, { "label": "Mon", "value": "2" }, { "label": "TZ", "value": "3" }, { "label": "Week", "value": "4" }, { "label": "AM/PM", "value": "5" } ] },
       { "type": "select", "messageKey": "style_am_pm", "label": "Below Time, Right", "defaultValue": "0", "options": [ { "label": "-", "value": "0" }, { "label": "AM/PM", "value": "1" }, { "label": "TZ", "value": "2" }, { "label": "Week", "value": "3" } ] },

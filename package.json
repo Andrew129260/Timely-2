@@ -10,7 +10,8 @@
     "pebble": {
         "capabilities": [
             "location",
-            "configurable"
+            "configurable",
+            "health"
         ],
         "displayName": "Timely 2",
         "enableMultiJS": true,
@@ -101,7 +102,8 @@
             "idle_vibe_patt",
             "idle_start",
             "idle_stop",
-            "weather_update"
+            "weather_update",
+            "complication_mode"
         ],
         "projectType": "native",
         "resources": {
@@ -197,8 +199,8 @@
         ],
         "uuid": "d5a38a50-c240-4da9-aa64-bfb52b95f4c1",
         "watchapp": {
-            "watchface": true
+            "watchface": false
         }
     },
-    "version": "3.5.5"
+    "version": "4.0.0"
 }
