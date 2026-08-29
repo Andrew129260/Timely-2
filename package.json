@@ -103,7 +103,8 @@
             "idle_start",
             "idle_stop",
             "weather_update",
-            "complication_mode"
+            "complication_mode",
+            "tap_to_cycle"
         ],
         "projectType": "native",
         "resources": {
@@ -202,5 +203,5 @@
             "watchface": true
         }
     },
-    "version": "4.0.4"
+    "version": "5.0.0"
 }

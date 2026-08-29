@@ -3,7 +3,7 @@
 
 #define DEBUGLOG 0
 #define TRANSLOG 0
-#define CONFIG_VERSION "4.0.0"
+#define CONFIG_VERSION "5.0.0"
 
 static Window *window;
 static Layer *battery_layer, *datetime_layer, *calendar_layer, *splash_layer, *weather_layer, *statusbar, *slot_status, *slot_top, *slot_bot;
@@ -21,6 +21,7 @@ AppTimer *weather_request = NULL;
 AppTimer *bottom_toggle = NULL;
 static bool bluetooth_connected = false;
 static bool vibe_suppression = true;
+static bool tap_to_cycle = false;
 
 #define TIMEZONE_UNINITIALIZED 80
 static int8_t timezone_offset = TIMEZONE_UNINITIALIZED;
@@ -48,6 +49,10 @@ static int s_batt_width = 44;
 #define PK_ADV_SETTINGS 6
 #define PK_PHONE_BATT 7
 #define PK_COMPLICATION_MODE 8 
+#define PK_CACHED_BPM 9 
+#define PK_WEATHER_TEMP 10
+#define PK_WEATHER_COND 11
+#define PK_TAP_TO_CYCLE 12
 
 #define MSG_VAL_SEND_BATT_PERCENT 100
 #define MSG_VAL_TIMEZONE_OFFSET 103
@@ -67,6 +72,7 @@ static uint8_t active_display_metric = MODE_WEATHER;
 static int cached_steps = 0;
 static int cached_bpm = 0;
 static int cached_sleep_hours = 0;
+static int cached_sleep_mins = 0;
 #else
 #define MODE_WEATHER 1
 static uint8_t active_display_metric = MODE_WEATHER;
@@ -153,9 +159,16 @@ void setInvColors(GContext* ctx) {
 void update_health_cache() {
 #if defined(PBL_PLATFORM_EMERY)
   cached_steps = (int)health_service_sum_today(HealthMetricStepCount);
-  cached_bpm = (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
+  
+  int new_bpm = (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
+  // Do NOT write to flash here! Update RAM only.
+  if (new_bpm > 0) {
+    cached_bpm = new_bpm;
+  }
+  
   HealthValue sleep_sec = health_service_sum_today(HealthMetricSleepSeconds);
   cached_sleep_hours = (int)(sleep_sec / 3600);
+  cached_sleep_mins = (int)((sleep_sec % 3600) / 60);
 #endif
 }
 
@@ -182,48 +195,55 @@ void weather_layer_update_callback(Layer *me, GContext* ctx) {
   } else {
     static char metric_text[16] = "";
     
-    // 1. Match the exact font size and weight of the Weather Temperature
+    // Match the exact font size and weight of the Weather Temperature
     GFont metric_font = fonts_get_system_font(device_height > 168 ? FONT_KEY_GOTHIC_28 : FONT_KEY_GOTHIC_24);
     
-    // 2. Set the drawing color to automatically match your Light/Dark theme
+    // Set the drawing color to automatically match your Light/Dark theme
     GColor icon_color = settings.inverted ? GColorBlack : GColorWhite;
     graphics_context_set_fill_color(ctx, icon_color);
     graphics_context_set_stroke_color(ctx, icon_color);
 
-    // Establish the center X coordinate for the icon drawing area
-    int cx = SY(22); 
+    // Turn on Anti-Aliasing for buttery smooth custom vectors!
+    graphics_context_set_antialiased(ctx, true);
+
+    // Establish the center coordinates for the icon drawing area
+    int cx = SY(25); 
 
     if (active_display_metric == MODE_STEPS) { 
         snprintf(metric_text, sizeof(metric_text), "%d", cached_steps); 
-        int cy_steps = SY(28); // Pushed down
+        int cy_steps = SY(28); 
         
-        // Draw Left Footprint (rounded rectangle)
+        // Draw Left Footprint
         graphics_fill_rect(ctx, GRect(cx - 8, cy_steps, 6, 10), 3, GCornersAll); 
-        // Draw Right Footprint (slightly higher and to the right)
+        // Draw Right Footprint
         graphics_fill_rect(ctx, GRect(cx + 2, cy_steps - 4, 6, 10), 3, GCornersAll); 
     } 
     else if (active_display_metric == MODE_HEART) { 
         snprintf(metric_text, sizeof(metric_text), "%d", cached_bpm); 
-        int cy_heart = SY(26); // Pushed down
+        int cy_heart = SY(26); 
+        int r = 4;
         
-        // Draw Heart Left Lobe
-        graphics_fill_circle(ctx, GPoint(cx - 5, cy_heart - 3), 5); 
-        // Draw Heart Right Lobe
-        graphics_fill_circle(ctx, GPoint(cx + 5, cy_heart - 3), 5); 
+        // Draw Heart Lobes
+        graphics_fill_circle(ctx, GPoint(cx - r, cy_heart - r), r); 
+        graphics_fill_circle(ctx, GPoint(cx + r, cy_heart - r), r); 
+        
+        // Fill the 1px center gap to make a perfect pixel heart
+        graphics_fill_rect(ctx, GRect(cx - r, cy_heart - r, r*2 + 1, r + 1), 0, GCornerNone); 
         
         // Draw the bottom triangle of the heart using stacked horizontal lines
-        for (int i = 0; i <= 10; i++) {
-            graphics_draw_line(ctx, GPoint(cx - 10 + i, cy_heart + 1 + i), GPoint(cx + 10 - i, cy_heart + 1 + i));
+        for (int i = 0; i <= 8; i++) {
+            graphics_draw_line(ctx, GPoint(cx - 8 + i, cy_heart + 1 + i), GPoint(cx + 8 - i, cy_heart + 1 + i));
         }
     } 
     else if (active_display_metric == MODE_SLEEP) { 
-        snprintf(metric_text, sizeof(metric_text), "%dh", cached_sleep_hours); 
-        // Draw Moon using the weather font, pushed down to SY(20)
-        graphics_draw_text(ctx, "N", climacons, GRect(0, SY(20), SY(44), SY(34)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+        snprintf(metric_text, sizeof(metric_text), "%dh %dm", cached_sleep_hours, cached_sleep_mins); 
+        
+        // Draw Moon using the weather font, pushed down to SY(20) to match
+        graphics_draw_text(ctx, "N", climacons, GRect(0, SY(20), SY(50), SY(34)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
     }
 
-    // 3. Draw the number metric perfectly aligned with the weather temperature height (SY 42)
-    graphics_draw_text(ctx, metric_text, metric_font, GRect(0, SY(42), SY(44), SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+    // Draw the number metric perfectly aligned with the weather temperature height
+    graphics_draw_text(ctx, metric_text, metric_font, GRect(0, SY(42), SY(50), SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
   }
 #endif
 }
@@ -373,7 +393,7 @@ void update_date_text() {
     "%m.%e.%y", "%m-%e-%y", "%m/%e/%y", "%m %e %y", "%m%e%y", 
     "%d.%m.%Y", "%d-%m-%Y", "%d/%m/%Y", "%d %m %Y", "%d%m%Y", 
     "%d.%m.%y", "%d-%m-%y", "%d/%m/%y", "%d %m %y", "%d%m%y", 
-    "%e.%m.%Y", "%e-%m-%Y", "%e/%m/%Y", "%e %m %Y", "%e%m%Y", 
+    "%e.%m.%Y", "%e-%m-%Y", "%e/%m/%Y", "%e %m %Y", "%e%m%y", 
     "%e.%m.%y", "%e-%m-%y", "%e/%m/%y", "%e %m %y", "%e%m%y", 
     "%Y.%m.%d", "%Y-%m-%d", "%Y/%m/%d", "%Y %m %d", "%Y%m%d", 
     "%y.%m.%d", "%y-%m-%d", "%y/%m/%d", "%y %m %d", "%y%m%d", 
@@ -985,6 +1005,16 @@ void set_layer_attr_cfont(TextLayer *textlayer, uint32_t FontResHandle, GTextAli
   text_layer_set_font(textlayer, fonts_load_custom_font(resource_get_handle(FontResHandle)));
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+static void touch_handler(const TouchEvent *event, void *context) {
+  if (tap_to_cycle) {
+    // Cycle to the next metric (Steps -> Weather -> Heart -> Sleep)
+    active_display_metric = (active_display_metric + 1) % 4;
+    layer_mark_dirty(weather_layer);
+  }
+}
+#endif
+
 static void window_load(Window *window) {
 #if defined(PBL_PLATFORM_EMERY)
   unifont_16 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_FUTURA_CONDENSED_65));
@@ -1178,6 +1208,20 @@ static void window_unload(Window *window) {
 }
 
 static void deinit(void) {
+#if defined(PBL_PLATFORM_EMERY)
+  if (cached_bpm > 0) {
+    persist_write_int(PK_CACHED_BPM, cached_bpm);
+  }
+  
+  // NEW: Unsubscribe from the touch screen
+  touch_service_unsubscribe();
+#endif
+
+  if (weather.current != 999) {
+    persist_write_int(PK_WEATHER_TEMP, weather.current);
+    persist_write_string(PK_WEATHER_COND, weather.condition);
+  }
+
   bluetooth_connection_service_unsubscribe();
   battery_state_service_unsubscribe();
   tick_timer_service_unsubscribe();
@@ -1212,6 +1256,14 @@ void handle_minute_tick(struct tm *tick_time, TimeUnits units_changed)
     } 
   } 
 
+#if defined(PBL_PLATFORM_EMERY)
+  if (complication_mode != MODE_WEATHER) {
+    update_health_cache();
+  }
+
+  layer_mark_dirty(weather_layer);
+#endif
+
   if (units_changed & HOUR_UNIT) {
     request_timezone(NULL);
     update_datetime_subtext();
@@ -1220,9 +1272,6 @@ void handle_minute_tick(struct tm *tick_time, TimeUnits units_changed)
     }
     
 #if defined(PBL_PLATFORM_EMERY)
-    if (complication_mode != MODE_WEATHER) {
-      update_health_cache();
-    }
     if (complication_mode == MODE_ROTATE) {
       active_display_metric = (active_display_metric + 1) % 4;
       layer_mark_dirty(weather_layer);
@@ -1314,6 +1363,12 @@ void in_configuration_handler(DictionaryIterator *received, void *context) {
         active_display_metric = complication_mode;
       }
       layer_mark_dirty(weather_layer);
+    }
+
+    Tuple *tap_t = dict_find(received, MESSAGE_KEY_tap_to_cycle);
+    if (tap_t != NULL) {
+      tap_to_cycle = (get_int(tap_t) != 0);
+      persist_write_bool(PK_TAP_TO_CYCLE, tap_to_cycle);
     }
 #endif
     
@@ -1637,14 +1692,38 @@ static void init(void) {
       persist_read_data(PK_ADV_SETTINGS, &adv_settings, sizeof(adv_settings) );
     }
   }
+
+  // Load newly added persistence items!
+  if (persist_exists(PK_TAP_TO_CYCLE)) {
+    tap_to_cycle = persist_read_bool(PK_TAP_TO_CYCLE);
+  }
+  if (persist_exists(PK_WEATHER_TEMP)) {
+    weather.current = persist_read_int(PK_WEATHER_TEMP);
+  }
+  if (persist_exists(PK_WEATHER_COND)) {
+    persist_read_string(PK_WEATHER_COND, weather.condition, sizeof(weather.condition));
+  }
   
 #if defined(PBL_PLATFORM_EMERY)
   complication_mode = MODE_WEATHER;
   if (persist_exists(PK_COMPLICATION_MODE)) {
     complication_mode = (uint8_t)persist_read_int(PK_COMPLICATION_MODE);
   }
-  active_display_metric = complication_mode;
+  
+  if (complication_mode == MODE_ROTATE) {
+    active_display_metric = MODE_WEATHER;
+  } else {
+    active_display_metric = complication_mode;
+  }
+  
+  if (persist_exists(PK_CACHED_BPM)) {
+    cached_bpm = persist_read_int(PK_CACHED_BPM);
+  }
+  
   update_health_cache(); 
+  
+  // NEW: Subscribe to the capacitive touch screen!
+  touch_service_subscribe(touch_handler, NULL);
 #endif
 
   if (DEBUGLOG == 1) { debug.general = true; }

@@ -4,12 +4,12 @@ var clayConfig = require('./config.json');
 // Bypassing @rebble/clay's broken emery capability checker
 var watch = Pebble.getActiveWatchInfo();
 
-// If the watch is missing or is NOT an emery (Time 2), strip the dropdown from the JSON before Clay loads
+// If the watch is missing or is NOT an emery (Time 2), strip Emery-specific settings from the JSON before Clay loads
 if (!watch || watch.platform !== 'emery') {
   clayConfig.forEach(function(section) {
     if (section.items) {
       section.items = section.items.filter(function(item) {
-        return item.messageKey !== 'complication_mode';
+        return item.messageKey !== 'complication_mode' && item.messageKey !== 'tap_to_cycle';
       });
     }
   });
