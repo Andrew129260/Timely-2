@@ -10,7 +10,7 @@
 typedef struct persist { // 46 bytes
   uint8_t version;                // version key
   uint8_t inverted;               // Invert display
-  uint8_t day_invert;              // Invert colors on today's date
+  uint8_t day_invert;             // Invert colors on today's date
   uint8_t grid;                   // Show the grid
   uint8_t vibe_hour;              // vibrate at the top of the hour?
   uint8_t dayOfWeekOffset;        // first day of our week
@@ -30,7 +30,7 @@ typedef struct persist_months_lang { // 252 bytes
 } __attribute__((__packed__)) persist_months_lang;
 
 typedef struct persist_days_lang { // 238 bytes
-  char DaysOfWeek[7][34];         //  238: 16-33 UTF8 characters for each of 7 weekdays
+  char DaysOfWeek[7][34];         // 238: 16-33 UTF8 characters for each of 7 weekdays
 } __attribute__((__packed__)) persist_days_lang;
 
 typedef struct persist_general_lang { // 253 bytes
@@ -38,58 +38,57 @@ typedef struct persist_general_lang { // 253 bytes
   char abbrTime[2][12];           //  24:  5-11 characters for each of  2 abbreviations
   char abbrDaysOfWeek[7][6];      //  42:  2- 5 characters for each of  7 weekdays abbreviations
   char abbrMonthsNames[12][11];   // 132:  5-11 characters for each of 12 months abbreviations
-  char language[3];               //   3:  2 characters for language (internal, stored as ascii for convenience)
+  char language[3];               //   3:  2 characters for language
 } __attribute__((__packed__)) persist_general_lang;
 
 typedef struct persist_debug { // 6 bytes
-  bool general;              // debugging messages (general)
-  bool language;             // debugging messages (language/translation)
-  bool reserved_1;           // debugging messages (reserved to spare updates later)
-  bool reserved_2;           // debugging messages (reserved to spare updates later)
-  bool reserved_3;           // debugging messages (reserved to spare updates later)
-  bool reserved_4;           // debugging messages (reserved to spare updates later)
+  bool general;
+  bool language;
+  bool reserved_1;
+  bool reserved_2;
+  bool reserved_3;
+  bool reserved_4;
 } __attribute__((__packed__)) persist_debug;
 
 typedef struct persist_adv_settings { // 243 bytes
-  uint8_t week_pattern;    //  1 byte
-  uint8_t invertStatBar;   //  1 byte
-  uint8_t invertTopSlot;   //  1 byte
-  uint8_t invertBotSlot;   //  1 byte
-  uint8_t showStatus;      //  1 byte
-  uint8_t showStatusBat;   //  1 byte
-  uint8_t showDate;        //  1 byte
-  uint8_t DND_start;       //  1 byte
-  uint8_t DND_stop;        //  1 byte
-  uint8_t DND_accel_off;   //  1 byte
-  uint8_t vibe_hour_start; //  1 byte
-  uint8_t vibe_hour_stop;  //  1 byte
-  uint8_t vibe_hour_days;  //  1 byte
-  uint8_t idle_reminder;   //  1 byte
-  uint8_t idle_pattern;    //  1 byte
-  char idle_message[32];   // 32 bytes
-  uint8_t idle_start;      //  1 byte
-  uint8_t idle_stop;       //  1 byte
-  int8_t clock2_tz;        //  1 byte
-  char clock2_desc[32];    // 32 bytes
-  uint8_t weather_format;  //  1 byte
-  uint8_t weather_update;  //  1 byte
-  char weather_lat[8];     //  8 bytes
-  char weather_lon[8];     //  8 bytes
-  uint8_t clock_font;      //  1 byte
-  uint8_t token_type[2];   //  2 bytes
-  char token_code[2][65];  //130 bytes
-  uint8_t slots[10];       // 10 bytes
+  uint8_t week_pattern;
+  uint8_t invertStatBar;
+  uint8_t invertTopSlot;
+  uint8_t invertBotSlot;
+  uint8_t showStatus;
+  uint8_t showStatusBat;
+  uint8_t showDate;
+  uint8_t DND_start;
+  uint8_t DND_stop;
+  uint8_t DND_accel_off;
+  uint8_t vibe_hour_start;
+  uint8_t vibe_hour_stop;
+  uint8_t vibe_hour_days;
+  uint8_t idle_reminder;
+  uint8_t idle_pattern;
+  char idle_message[32];
+  uint8_t idle_start;
+  uint8_t idle_stop;
+  int8_t clock2_tz;
+  char clock2_desc[32];
+  uint8_t weather_format;
+  uint8_t weather_update;
+  char weather_lat[8];
+  char weather_lon[8];
+  uint8_t clock_font;
+  uint8_t token_type[2];
+  char token_code[2][65];
+  uint8_t slots[10];
 } __attribute__((__packed__)) persist_adv_settings;
 
 typedef struct weather_data {
-  int16_t current;            // current temperature
-  char condition[2];          // weather_conditions (mapped to single character in font)
-  int16_t requests;           // requests we've put out since last success
-  int16_t failures;           // failed responses that have come back since last success
+  int16_t current;
+  char condition[2];
+  int16_t requests;
+  int16_t failures;
 } __attribute__((__packed__)) weather_data;
 
 // Public Function Prototypes
-char *translate_error(AppMessageResult result);
 int daysInMonth(int mon, int year);
 struct tm *get_time();
 void setColors(GContext* ctx);
@@ -104,8 +103,8 @@ void update_month_text(TextLayer *which_layer);
 void update_week_text(TextLayer *which_layer);
 void update_ampm_text(TextLayer *which_layer);
 void update_seconds_text(TextLayer *which_layer);
-char * get_doy_text();
-char * get_dliy_text();
+char *get_doy_text();
+char *get_dliy_text();
 void update_doy_text(TextLayer *which_layer);
 void update_dliy_text(TextLayer *which_layer);
 void update_doy_dliy_text(TextLayer *which_layer);
@@ -122,10 +121,6 @@ void datetime_layer_update_callback(Layer *me, GContext* ctx);
 void statusbar_visible();
 void toggle_weather();
 void toggle_statusbar();
-void slot_status_layer_update_callback(Layer *me, GContext* ctx);
-void statusbar_layer_update_callback(Layer *me, GContext* ctx);
-void slot_top_layer_update_callback(Layer *me, GContext* ctx);
-void slot_bot_layer_update_callback(Layer *me, GContext* ctx);
 void battery_layer_update_callback(Layer *me, GContext* ctx);
 void set_status_charging_icon();
 void generate_vibe(uint32_t vibe_pattern_number);
@@ -135,7 +130,6 @@ bool dnd_period_check();
 bool hourvibe_period_check();
 void set_layer_attr(TextLayer *textlayer, GTextAlignment Alignment);
 void set_layer_attr_sfont(TextLayer *textlayer, char *font_key, GTextAlignment Alignment);
-void set_layer_attr_cfont(TextLayer *textlayer, uint32_t FontResHandle, GTextAlignment Alignment);
 void handle_vibe_suppression();
 void my_out_sent_handler(DictionaryIterator *sent, void *context);
 void my_out_fail_handler(DictionaryIterator *failed, AppMessageResult reason, void *context);
