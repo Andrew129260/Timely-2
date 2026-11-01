@@ -93,6 +93,19 @@ static uint8_t active_display_metric = MODE_WEATHER;
 #define STAT_BT_ICON_TOP 2
 #define STAT_CHRG_ICON_LEFT 76
 #define STAT_CHRG_ICON_TOP 2
+#if defined(PBL_PLATFORM_EMERY)
+// Emery has a larger weather glyph font; the temperature sits lower to clear it.
+#define CLIMACONS_RESOURCE RESOURCE_ID_FONT_CLIMACONS_50
+#define WEATHER_ICON_NUDGE -3
+#define WEATHER_ICON_GROW 4
+#define WEATHER_TEMP_NUDGE 6
+#else
+#define CLIMACONS_RESOURCE RESOURCE_ID_FONT_CLIMACONS_32
+#define WEATHER_ICON_NUDGE 0
+#define WEATHER_ICON_GROW 0
+#define WEATHER_TEMP_NUDGE 0
+#endif
+#define STAT_ICON_SIZE 20
 #define REL_CLOCK_DATE_LEFT 2
 #define REL_CLOCK_DATE_TOP 0
 #define REL_CLOCK_DATE_HEIGHT 30
@@ -255,6 +268,35 @@ static bool update_health_cache(void) {
   return false;
 }
 
+#if defined(PBL_PLATFORM_EMERY)
+// Compact step count: 987, 4.2k, 10.5k, 105k (truncated, never rounded up).
+static void format_steps(char *buf, size_t len, int steps) {
+  if (steps < 1000) {
+    snprintf(buf, len, "%d", steps);
+  } else if (steps < 100000) {
+    snprintf(buf, len, "%d.%dk", steps / 1000, (steps % 1000) / 100);
+  } else {
+    snprintf(buf, len, "%dk", steps / 1000);
+  }
+}
+
+// Width available to the metric text, which is centred on cx, before it would
+// run into the clock digits (whose left edge shifts with 1- vs 2-digit hours).
+static int metric_max_width(int cx) {
+  const char *time_str = text_layer_get_text(time_layer);
+  GRect tf = layer_get_frame(text_layer_get_layer(time_layer));
+  GFont time_font = s_time_font ? s_time_font : fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD);
+  int clock_left = device_width;
+  if (time_str) {
+    GSize ts = graphics_text_layout_get_content_size(time_str, time_font,
+        GRect(0, 0, 2 * device_width, tf.size.h), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+    clock_left = tf.origin.x + tf.size.w - ts.w;
+  }
+  int right_room = clock_left - 2 - cx;
+  return 2 * (right_room < cx ? right_room : cx);
+}
+#endif
+
 void weather_layer_update_callback(Layer *me, GContext* ctx) {
   (void)me; 
   setColors(ctx);
@@ -271,8 +313,8 @@ void weather_layer_update_callback(Layer *me, GContext* ctx) {
     }
     snprintf(cond_current, sizeof(cond_current), "%s", weather.condition);
 
-    graphics_draw_text(ctx, cond_current, climacons, GRect(2, SY(16), SY(34), SY(34)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
-    graphics_draw_text(ctx, temp_current, fonts_get_system_font(device_height > 168 ? FONT_KEY_GOTHIC_28 : FONT_KEY_GOTHIC_24), GRect(2, SY(42), SY(36), SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+    graphics_draw_text(ctx, cond_current, climacons, GRect(2, SY(16) + WEATHER_ICON_NUDGE, SY(34) + WEATHER_ICON_GROW, SY(34) + WEATHER_ICON_GROW), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+    graphics_draw_text(ctx, temp_current, fonts_get_system_font(device_height > 168 ? FONT_KEY_GOTHIC_28 : FONT_KEY_GOTHIC_24), GRect(2, SY(42) + WEATHER_TEMP_NUDGE, SY(36), SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
   
 #if defined(PBL_PLATFORM_EMERY)
   } else {
@@ -290,43 +332,57 @@ void weather_layer_update_callback(Layer *me, GContext* ctx) {
     graphics_context_set_antialiased(ctx, true);
 
     // Establish the center coordinates for the icon drawing area
-    int cx = SY(25); 
+    // Centre the metrics on the same column as the weather glyph and temperature
+    int cx = 2 + SY(18); 
 
     if (active_display_metric == MODE_STEPS) { 
-        snprintf(metric_text, sizeof(metric_text), "%d", cached_steps); 
-        int cy_steps = SY(28); 
+        format_steps(metric_text, sizeof(metric_text), cached_steps); 
+        int cy_steps = SY(30); 
         
         // Draw Left Footprint
-        graphics_fill_rect(ctx, GRect(cx - 8, cy_steps, 6, 10), 3, GCornersAll); 
+        graphics_fill_rect(ctx, GRect(cx - 11, cy_steps, 8, 14), 4, GCornersAll); 
         // Draw Right Footprint
-        graphics_fill_rect(ctx, GRect(cx + 2, cy_steps - 4, 6, 10), 3, GCornersAll); 
+        graphics_fill_rect(ctx, GRect(cx + 3, cy_steps - 6, 8, 14), 4, GCornersAll); 
     } 
     else if (active_display_metric == MODE_HEART) { 
         snprintf(metric_text, sizeof(metric_text), "%d", cached_bpm); 
-        int cy_heart = SY(26); 
-        int r = 4;
+        int r = 6;                // lobe radius; the point keeps its 16 px length
+        int cy_heart = SY(31) - 1;   // row of the lobe centres; the heart spans cy-r .. cy+16
+        int tri_h = 16;
         
         // Draw Heart Lobes
-        graphics_fill_circle(ctx, GPoint(cx - r, cy_heart - r), r); 
-        graphics_fill_circle(ctx, GPoint(cx + r, cy_heart - r), r); 
+        graphics_fill_circle(ctx, GPoint(cx - r, cy_heart), r); 
+        graphics_fill_circle(ctx, GPoint(cx + r, cy_heart), r); 
         
-        // Fill the 1px center gap to make a perfect pixel heart
-        graphics_fill_rect(ctx, GRect(cx - r, cy_heart - r, r*2 + 1, r + 1), 0, GCornerNone); 
-        
-        // Draw the bottom triangle of the heart using stacked horizontal lines
-        for (int i = 0; i <= 8; i++) {
-            graphics_draw_line(ctx, GPoint(cx - 8 + i, cy_heart + 1 + i), GPoint(cx + 8 - i, cy_heart + 1 + i));
+        // Bottom triangle, starting at the lobes' outer edges (half-width 2r) so the sides don't pinch
+        for (int i = 0; i <= tri_h; i++) {
+            int half = 2 * r * (tri_h - i) / tri_h;
+            graphics_fill_rect(ctx, GRect(cx - half, cy_heart + i, 2 * half + 1, 1), 0, GCornerNone);
         }
     } 
     else if (active_display_metric == MODE_SLEEP) { 
-        snprintf(metric_text, sizeof(metric_text), "%dh %dm", cached_sleep_hours, cached_sleep_mins); 
+        snprintf(metric_text, sizeof(metric_text), "%dh%02d", cached_sleep_hours, cached_sleep_mins); 
         
         // Draw Moon using the weather font, pushed down to SY(20) to match
-        graphics_draw_text(ctx, "N", climacons, GRect(0, SY(20), SY(50), SY(34)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+        graphics_draw_text(ctx, "N", climacons, GRect(cx - SY(25), SY(20), SY(50), SY(34)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
     }
 
-    // Draw the number metric perfectly aligned with the weather temperature height
-    graphics_draw_text(ctx, metric_text, metric_font, GRect(0, SY(42), SY(50), SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+    // Draw the number metric aligned with the weather temperature height, stepping
+    // down to a smaller font if it would run into the clock digits
+    int max_w = metric_max_width(cx);
+    const char *font_keys[] = { FONT_KEY_GOTHIC_28, FONT_KEY_GOTHIC_24, FONT_KEY_GOTHIC_18 };
+    const int font_nudge[] = { 0, 3, 6 };
+    int fi = 0;
+    GSize metric_size = GSize(0, 0);
+    for (; fi < 3; fi++) {
+      metric_font = fonts_get_system_font(font_keys[fi]);
+      metric_size = graphics_text_layout_get_content_size(metric_text, metric_font,
+          GRect(0, 0, 200, 40), GTextOverflowModeWordWrap, GTextAlignmentLeft);
+      if (metric_size.w <= max_w) break;
+    }
+    if (fi == 3) fi = 2;
+    int box_w = metric_size.w + 6;
+    graphics_draw_text(ctx, metric_text, metric_font, GRect(cx - box_w / 2, SY(42) + WEATHER_TEMP_NUDGE + font_nudge[fi], box_w, SY(36)), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
   }
 #endif
 }
@@ -1054,7 +1110,7 @@ static void window_load(Window *window) {
   s_time_font = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_FUTURA_CONDENSED_65));
 #endif
 
-  climacons = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_CLIMACONS_32));
+  climacons = fonts_load_custom_font(resource_get_handle(CLIMACONS_RESOURCE));
   cal_normal = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   cal_bold   = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
 
@@ -1091,13 +1147,13 @@ static void window_load(Window *window) {
   layer_add_child(window_layer, slot_bot);
   GRect slot_bot_bounds = layer_get_bounds(slot_bot);
 
-  bmp_connection_layer = bitmap_layer_create( GRect((device_width / 2) - 10, STAT_BT_ICON_TOP, 20, 20) );
+  bmp_connection_layer = bitmap_layer_create( GRect((device_width / 2) - STAT_ICON_SIZE / 2, STAT_BT_ICON_TOP, STAT_ICON_SIZE, STAT_ICON_SIZE) );
   layer_add_child(statusbar, bitmap_layer_get_layer(bmp_connection_layer));
   
   image_connection_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BT_LINKED_ICON);
   image_noconnection_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BT_UNLINK_ICON);
 
-  bmp_charging_layer = bitmap_layer_create( GRect(SX(STAT_CHRG_ICON_LEFT), STAT_CHRG_ICON_TOP, 20, 20) );
+  bmp_charging_layer = bitmap_layer_create( GRect(SX(STAT_CHRG_ICON_LEFT), STAT_CHRG_ICON_TOP, STAT_ICON_SIZE, STAT_ICON_SIZE) );
   layer_add_child(statusbar, bitmap_layer_get_layer(bmp_charging_layer));
   image_charging_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_CHARGING_ICON);
   image_hourvibe_icon = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_HOURVIBE_ICON);

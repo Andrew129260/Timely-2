@@ -112,7 +112,20 @@
                 {
                     "file": "fonts/Climacons.ttf",
                     "name": "FONT_CLIMACONS_32",
-                    "targetPlatforms": null,
+                    "targetPlatforms": [
+                        "aplite",
+                        "basalt",
+                        "diorite",
+                        "flint"
+                    ],
+                    "type": "font"
+                },
+                {
+                    "file": "fonts/Climacons.ttf",
+                    "name": "FONT_CLIMACONS_50",
+                    "targetPlatforms": [
+                        "emery"
+                    ],
                     "type": "font"
                 },
                 {
