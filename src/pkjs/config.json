@@ -71,7 +71,7 @@
         "type": "select",
         "messageKey": "vibe_pat_connect",
         "label": "Connect Vibration",
-        "defaultValue": "0",
+        "defaultValue": "3",
         "options": [
           { "label": "None", "value": "0" },
           { "label": "1x", "value": "1" },
@@ -96,7 +96,7 @@
         "type": "select",
         "messageKey": "intl_fmt_date",
         "label": "Date Format",
-        "defaultValue": "0",
+        "defaultValue": "197",
         "options": [
           { "label": "MMMM DD, YYYY", "value": "0" },
           { "label": "DD.MM.YYYY", "value": "215" },
@@ -131,19 +131,21 @@
         "type": "select",
         "messageKey": "style_week",
         "label": "Below Time, Left",
+        "description": "Note: Displaying seconds will significantly reduce battery life.",
         "defaultValue": "0",
         "options": [
           { "label": "-", "value": "0" },
           { "label": "Week", "value": "1" },
           { "label": "TZ", "value": "2" },
-          { "label": "AM/PM", "value": "3" }
+          { "label": "AM/PM", "value": "3" },
+          { "label": "Seconds", "value": "6" }
         ]
       },
       {
         "type": "select",
         "messageKey": "style_day",
         "label": "Below Time, Middle",
-        "defaultValue": "0",
+        "defaultValue": "2",
         "options": [
           { "label": "-", "value": "0" },
           { "label": "Day", "value": "1" },
@@ -157,12 +159,14 @@
         "type": "select",
         "messageKey": "style_am_pm",
         "label": "Below Time, Right",
-        "defaultValue": "0",
+        "description": "Note: Displaying seconds will significantly reduce battery life.",
+        "defaultValue": "1",
         "options": [
           { "label": "-", "value": "0" },
           { "label": "AM/PM", "value": "1" },
           { "label": "TZ", "value": "2" },
-          { "label": "Week", "value": "3" }
+          { "label": "Week", "value": "3" },
+          { "label": "Seconds", "value": "6" }
         ]
       },
       {
@@ -263,7 +267,7 @@
         "type": "select",
         "messageKey": "PhoneBatteryInterval",
         "label": "Battery Update Interval",
-        "defaultValue": "30",
+        "defaultValue": "10",
         "options": [
           { "label": "10 Minutes", "value": "10" },
           { "label": "30 Minutes", "value": "30" },

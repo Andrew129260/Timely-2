@@ -106,7 +106,7 @@ static uint8_t active_display_metric = MODE_WEATHER;
 weather_data weather = { .current = 999, .condition = {'h'}, .requests = 0, .failures = 0 };
 static time_t weather_timestamp = 0;
 #define WEATHER_STALE_SECONDS (6 * SECONDS_PER_HOUR)
-persist settings = { .version = 13, .inverted = 1, .day_invert = 1, .grid = 1, .vibe_hour = 0, .dayOfWeekOffset = 0, .date_format = 0, .show_am_pm = 0, .show_day = 0, .show_week = 0, .week_format = 0, .vibe_pat_disconnect = 2, .vibe_pat_connect = 0, .strftime_format = "%Y-%m-%d", .track_battery = 1 };
+persist settings = { .version = 13, .inverted = 1, .day_invert = 1, .grid = 1, .vibe_hour = 0, .dayOfWeekOffset = 0, .date_format = 197, .show_am_pm = 1, .show_day = 2, .show_week = 0, .week_format = 0, .vibe_pat_disconnect = 2, .vibe_pat_connect = 3, .strftime_format = "%Y-%m-%d", .track_battery = 1 };
 persist_months_lang lang_months = { .monthsNames = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" } };
 persist_days_lang lang_days = { .DaysOfWeek = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" } };
 persist_general_lang lang_gen = { .statuses = { "Linked", "NOLINK" }, .abbrTime = { "AM", "PM" }, .abbrDaysOfWeek = { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" }, .abbrMonthsNames = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }, .language = "EN" };
@@ -702,18 +702,16 @@ void position_time_layer() {
 }
 
 void update_datetime_subtext() {
-    process_show_week();
-    process_show_day();
-    process_show_ampm();
-    position_time_layer();
+  process_show_week();
+  process_show_day();
+  process_show_ampm();
+  position_time_layer();
 }
 
-void datetime_layer_update_callback(Layer *me, GContext* ctx) {
-    (void)me;
-    setColors(ctx);
-    update_date_text();
-    update_time_text();
-    update_datetime_subtext();
+void update_datetime_layers() {
+  update_date_text();
+  update_time_text();
+  update_datetime_subtext();
 }
 
 void statusbar_visible() {
@@ -777,7 +775,6 @@ void toggle_statusbar() {
   }
   position_date_layer();
 }
-
 
 void battery_layer_update_callback(Layer *me, GContext* ctx) {
   setColors(ctx);
@@ -1115,7 +1112,6 @@ static void window_load(Window *window) {
   layer_add_child(statusbar, battery_layer);
 
   datetime_layer = layer_create(slot_top_bounds);
-  layer_set_update_proc(datetime_layer, datetime_layer_update_callback);
   layer_add_child(slot_top, datetime_layer);
 
   calendar_layer = layer_create(slot_bot_bounds);
@@ -1348,7 +1344,8 @@ void handle_minute_tick(struct tm *tick_time, TimeUnits units_changed)
   }
 
   if (units_changed & DAY_UNIT) {
-    layer_mark_dirty(datetime_layer);
+    update_date_text();
+    update_datetime_subtext();
     layer_mark_dirty(calendar_layer);
   }
 }
@@ -1500,7 +1497,6 @@ void in_configuration_handler(DictionaryIterator *received, void *context) {
     Tuple *FMT_DATE = dict_find(received, MESSAGE_KEY_intl_fmt_date);
     if (FMT_DATE != NULL) {
       settings.date_format = get_int(FMT_DATE);
-      update_date_text();
     }
 
     Tuple *style_week = dict_find(received, MESSAGE_KEY_style_week);
@@ -1541,8 +1537,6 @@ void in_configuration_handler(DictionaryIterator *received, void *context) {
     if (need_second_tick_handler() != seconds_shown) {
       switch_tick_handler();
     }
-
-    update_datetime_subtext();
 
     Tuple *VIBE_PAT_D = dict_find(received, MESSAGE_KEY_vibe_pat_disconnect);
     if (VIBE_PAT_D != NULL) {
@@ -1696,8 +1690,8 @@ void in_configuration_handler(DictionaryIterator *received, void *context) {
     persist_write_data(PK_DEBUGGING, &debug, sizeof(debug) );
     persist_write_data(PK_ADV_SETTINGS, &adv_settings, sizeof(adv_settings) );
 
-  if (1) { layer_mark_dirty(calendar_layer); } 
-  if (1) { layer_mark_dirty(datetime_layer); } 
+    update_datetime_layers();
+    layer_mark_dirty(calendar_layer);
 }
 
 void my_in_rcv_handler(DictionaryIterator *received, void *context) {

@@ -117,7 +117,7 @@ void position_date_layer();
 void position_day_layer();
 void position_time_layer();
 void update_datetime_subtext();
-void datetime_layer_update_callback(Layer *me, GContext* ctx);
+void update_datetime_layers();
 void statusbar_visible();
 void toggle_weather();
 void toggle_statusbar();
